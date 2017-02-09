@@ -41,6 +41,8 @@ public:
 protected:
 	BYTE* m_data;
 	size_t m_bufLen;
+        size_t m_payloadOffset;
+        size_t m_payloadSize;
 	int32_t m_type;
 	MemoryAllocator m_allocator;	//内存申请对象，默认使用共享内存的申请释放方法
 	bool m_isNeedFree;

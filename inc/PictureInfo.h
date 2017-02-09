@@ -30,13 +30,18 @@ namespace zMedia
 		//需配合E_COLORSPACE使用，如 PixelBytesCount[COLOR_E_RGB32], 若E_COLORSPACE的修改导致PixelBytesCount[n]出错，则应同步修改PixelBytesCount
 		static const float PixelBytesCount[] = {0, 1.5, 1.5, 2, 2, 2, 3, 4, 4, 4};
 
-		struct PICTURE_HEADER
+		struct PICTURE_FORMAT
 		{
-			PICTURE_HEADER():w(0),h(0),eColor(COLOR_E_NONE),stride(0),uv_stride(0) {}
+			PICTURE_FORMAT()
+                                : w(0),h(0),eColor(COLOR_E_NONE)
+                                , stride(0),u_stride(0), v_stride, a_stride(0)
+                                , pts(0)
+                        {}
 
-			PICTURE_HEADER(int width, int height, E_COLORSPACE colorspace)
+			PICTURE_FORMAT(int width, int height, E_COLORSPACE colorspace)
 				: w(width), h(height), eColor(colorspace)
-				, stride(0), uv_stride(0)
+				, stride(0), u_stride(0), v_stride(0), a_stride(0)
+                                , pts(0)
 			{
 				switch(eColor)
 				{
@@ -52,23 +57,35 @@ namespace zMedia
 				case COLOR_E_YV12:
 				case COLOR_E_I420:
 					y_stride = Align16Bytes(w);
-					uv_stride = Align16Bytes(w>>1);//w/2
+					u_stride = Align16Bytes(w>>1);//w/2
+					v_stride = Align16Bytes(w>>1);//w/2
 					break;
 				default:
 					break;
 				}
 			}
 
-			PICTURE_HEADER(int width, int height, E_COLORSPACE colorspace, int _stride, int uvStride)
+			PICTURE_FORMAT(int width, int height, 
+                                        E_COLORSPACE colorspace, int _stride, int _uStride, int _vStride, int _aStride)
 				: w(width), h(height), eColor(colorspace)
-				, stride(_stride), uv_stride(uvStride)
+				, stride(_stride), u_stride(_uStride), v_stride(_vStride), a_stride(_aStride)
+                                , pts(0)
+			{
+			}
+
+			PICTURE_FORMAT(int width, int height, 
+                                        E_COLORSPACE colorspace, int _stride, int _uStride, int _vStride, int _aStride,
+                                        unsigned int _pts)
+				: w(width), h(height), eColor(colorspace)
+				, stride(_stride), u_stride(_uStride), v_stride(_vStride), a_stride(_aStride)
+                                , pts(_pts)
 			{
 			}
 
 			bool isValid() const 
 			{ 
 				//最大支持4K
-				if(w<=0 || h<=0 || w>3840 || h>2160)	return false;
+				if(w<=0 || h<=0)	return false;
 				switch(eColor)
 				{
 				case COLOR_E_NONE:
@@ -83,11 +100,12 @@ namespace zMedia
 					return y_stride>0;
 				case COLOR_E_YV12:
 				case COLOR_E_I420:
-					return y_stride>0 && uv_stride>0;
+					return y_stride>0 && u_stride>0 && v_stride>0;
 				default:
 					return false;
 				}
 			}
+
 			int w;
 			int h;
 			E_COLORSPACE eColor;
@@ -95,7 +113,10 @@ namespace zMedia
 				int stride;
 				int y_stride;
 			};
-			int uv_stride;//仅仅平面格式用到，否则不用
+			int u_stride;//仅仅平面格式用到，否则不用
+			int v_stride;//仅仅平面格式用到，否则不用
+			int a_stride;//仅仅平面格式用到，否则不用,when pixel format need A planer, we need this.
+                        unsigned int pts;//after decoded we get pts.Not need dts in PICTURE after decoded.
 		};
 
 		inline int GetBitCount(E_COLORSPACE eColor)
@@ -128,15 +149,15 @@ namespace zMedia
 			return nBitCount;
 		}
 
-		inline int GetPictureSize(const PICTURE_HEADER& pH)
+		inline int GetPictureSize(const PICTURE_FORMAT& pH)
 		{
 			int nByteSize = 0;
 			switch (pH.eColor)
 			{
 			case COLOR_E_YV12:
 			case COLOR_E_I420:
-				nByteSize = pH.y_stride * pH.h + pH.uv_stride * pH.h / 2 + pH.uv_stride * pH.h / 2;
-                nByteSize = Align16Bytes(nByteSize);
+				nByteSize = pH.y_stride * pH.h + pH.u_stride * (pH.h >> 1) + pH.v_stride * (pH.h >> 1);
+                                nByteSize = Align16Bytes(nByteSize);
 				break;
 			case COLOR_E_YUY2:
 			case COLOR_E_UYVY:
@@ -145,6 +166,7 @@ namespace zMedia
 			case COLOR_E_RGB32:
 			case COLOR_E_RGBA:
 				nByteSize = pH.y_stride * pH.h;
+                                nByteSize = Align16Bytes(nByteSize);
 				break;
 			default:
 				assert(! "GetBitCount不支持的格式");
@@ -153,173 +175,193 @@ namespace zMedia
 			return nByteSize;
 		}
 
-		// 视频数据对象
-		class PictureRaw
-		{
-		public:
-			typedef PictureRaw SelfType;
-			typedef boost::shared_ptr<PictureRaw> SPtr;
+        // 视频数据对象
+        class PictureRaw
+        {
+        public:
+                typedef PictureRaw SelfType;
+                typedef boost::shared_ptr<PictureRaw> SPtr;
 
-			PictureRaw();
-			~PictureRaw();
+                PictureRaw();
+                ~PictureRaw();
 
-			inline const PICTURE_HEADER& header() const { return m_header; }
-			inline const BYTE* data() const { return m_buf.data(); }
-			inline BYTE* data() { return m_buf.data(); }
-			size_t size() const	{ return m_header.isValid() ? GetPictureSize(m_header) : 0; }
-			inline const BYTE* rgb() const;
-			inline const BYTE* yuv() const;
-			inline const BYTE* y() const;
-			inline const BYTE* u() const;
-			inline const BYTE* v() const;
+                inline const PICTURE_FORMAT& format() const { return m_format; }
+                inline const BYTE* data() const { return m_buf.data(); }
+                inline BYTE* data() { return m_buf.data(); }
+                size_t size() const	{ return m_format.isValid() ? GetPictureSize(m_format) : 0; }
+                inline const BYTE* rgb() const;
+                inline const BYTE* yuv() const;
+                inline const BYTE* y() const;
+                inline const BYTE* u() const;
+                inline const BYTE* v() const;
+                inline const BYTE* a() const;
 
-			/**
-			 *	@name			allocData
-			 *	@brief			根据参数_header申请用于保存图片数据的内存空间
-			 *					用户可提供allocator指定内存申请以及释放使用的函数，如果未指定，则默认使用BigBufferManager中提供的共享内存管理方法
-			 *	@param[in]		const PICTURE_HEADER & _header 图片的属性
-			 *	@param[in]		const MemoryAllocator & allocator 内存申请释放对象
-			 *	@return			bool true--成功  false--失败，可能_header指定的图片属性不正确，或者申请内存失败
-			 **/
-			bool allocData(const PICTURE_HEADER& _header, const MemoryAllocator& allocator = MemoryAllocator());
-			/**
-			 *	@name			attachData
-			 *	@brief			将当前对象与已申请的内存绑定
-			 *					当前对象被释放时，不会释放绑定的内存，用户需要自己负责释放内存
-			 *					此处绑定是不坚持数据是否为空以及数据的长度是否符合_header指定的图片属性所需要的数据长度
-			 *					若当前对象已有数据（申请的或者绑定的）则之前的数据将不再引用，申请的将被释放，绑定的将不再绑定
-			 *	@param[in]		BYTE * pData 用户内存块首地址
-			 *	@param[in]		size_t len 内存块大小
-			 *	@param[in]		const PICTURE_HEADER & _header 图片属性
-			 **/
-			bool attachData(BYTE* pData, size_t len, const PICTURE_HEADER& _header);
+                /**
+                 *	@name			allocData
+                 *	@brief			根据参数_format申请用于保存图片数据的内存空间
+                 *					用户可提供allocator指定内存申请以及释放使用的函数，如果未指定，则默认使用BigBufferManager中提供的共享内存管理方法
+                 *	@param[in]		const PICTURE_FORMAT & _format 图片的属性
+                 *	@param[in]		const MemoryAllocator & allocator 内存申请释放对象
+                 *	@return			bool true--成功  false--失败，可能_format指定的图片属性不正确，或者申请内存失败
+                 **/
+                bool allocData(const PICTURE_FORMAT& _format, const MemoryAllocator& allocator = MemoryAllocator());
+                /**
+                 *	@name			attachData
+                 *	@brief			将当前对象与已申请的内存绑定
+                 *					当前对象被释放时，不会释放绑定的内存，用户需要自己负责释放内存
+                 *					此处绑定是不坚持数据是否为空以及数据的长度是否符合_format指定的图片属性所需要的数据长度
+                 *					若当前对象已有数据（申请的或者绑定的）则之前的数据将不再引用，申请的将被释放，绑定的将不再绑定
+                 *	@param[in]		BYTE * pData 用户内存块首地址
+                 *	@param[in]		size_t len 内存块大小
+                 *	@param[in]		const PICTURE_FORMAT & _format 图片属性
+                 **/
+                bool attachData(BYTE* pData, size_t len, const PICTURE_FORMAT& _format);
 
-			void freeData();
+                void freeData();
 
-			void setTimestamp(int64_t ts) { m_timestamp = ts; }
-			int64_t getTimestamp() const { return m_timestamp; }
+                void setTimestamp(int64_t pts) { m_format.pts = ts; }
+                int64_t getTimestamp() const { return m_format.pts; }
 
-		private:
-			PictureRaw(const PictureRaw& robj);
-			PictureRaw& operator=(const PictureRaw& robj);
+        private:
+                PictureRaw(const PictureRaw& robj);
+                PictureRaw& operator=(const PictureRaw& robj);
 
-			PICTURE_HEADER m_header;
-            MediaBuffer m_buf;
-            uint32_t m_timestamp;
-		};
+                PICTURE_FORMAT m_format;
+                MediaBuffer m_buf;
+        };
 
         const BYTE* PictureRaw::rgb() const
-		{
-			if(!m_header.isValid()) return NULL;
-			switch (m_header.eColor)
-			{
-			case COLOR_E_YV12:
-			case COLOR_E_I420:
-			case COLOR_E_YUY2:
-			case COLOR_E_UYVY:
-				return NULL;
-			case COLOR_E_RGB565:
-			case COLOR_E_RGB24:
-			case COLOR_E_RGB32:
-			case COLOR_E_RGBA:
-				return m_buf.data();
-			default:
-				assert(! "不支持的像素格式");
-				return NULL;
-			}
-		}
+        {
+                if(!m_format.isValid()) return NULL;
+                switch (m_format.eColor)
+                {
+                case COLOR_E_YV12:
+                case COLOR_E_I420:
+                case COLOR_E_YUY2:
+                case COLOR_E_UYVY:
+                        return NULL;
+                case COLOR_E_RGB565:
+                case COLOR_E_RGB24:
+                case COLOR_E_RGB32:
+                case COLOR_E_RGBA:
+                        return m_buf.data();
+                default:
+                        assert(! "不支持的像素格式");
+                        return NULL;
+                }
+        }
 
-		const BYTE* PictureRaw::yuv() const
-		{
-			if(!m_header.isValid()) return NULL;
-			switch (m_header.eColor)
-			{
-			case COLOR_E_YV12:
-			case COLOR_E_I420:
-			case COLOR_E_YUY2:
-			case COLOR_E_UYVY:
-				return m_buf.data();
-			case COLOR_E_RGB565:
-			case COLOR_E_RGB24:
-			case COLOR_E_RGB32:
-			case COLOR_E_RGBA:
-				return NULL;
-			default:
-				assert(! "不支持的像素格式");
-				return NULL;
-			}
-		}
+        const BYTE* PictureRaw::yuv() const
+        {
+                if(!m_format.isValid()) return NULL;
+                switch (m_format.eColor)
+                {
+                case COLOR_E_YV12:
+                case COLOR_E_I420:
+                case COLOR_E_YUY2:
+                case COLOR_E_UYVY:
+                        return m_buf.data();
+                case COLOR_E_RGB565:
+                case COLOR_E_RGB24:
+                case COLOR_E_RGB32:
+                case COLOR_E_RGBA:
+                        return NULL;
+                default:
+                        assert(! "不支持的像素格式");
+                        return NULL;
+                }
+        }
 
-		const BYTE* PictureRaw::y() const
-		{
-			if(!m_header.isValid()) return NULL;
-			switch (m_header.eColor)
-			{
-			case COLOR_E_YV12:
-			case COLOR_E_I420:
-				return m_buf.data();
-			case COLOR_E_YUY2:
-			case COLOR_E_UYVY:
-				return NULL;
-			case COLOR_E_RGB565:
-			case COLOR_E_RGB24:
-			case COLOR_E_RGB32:
-			case COLOR_E_RGBA:
-				return NULL;
-			default:
-				assert(! "不支持的像素格式");
-				return NULL;
-			}
-		}
+        const BYTE* PictureRaw::y() const
+        {
+                if(!m_format.isValid()) return NULL;
+                switch (m_format.eColor)
+                {
+                case COLOR_E_YV12:
+                case COLOR_E_I420:
+                        return m_buf.data();
+                case COLOR_E_YUY2:
+                case COLOR_E_UYVY:
+                        return NULL;
+                case COLOR_E_RGB565:
+                case COLOR_E_RGB24:
+                case COLOR_E_RGB32:
+                case COLOR_E_RGBA:
+                        return NULL;
+                default:
+                        assert(! "不支持的像素格式");
+                        return NULL;
+                }
+        }
 
-		const BYTE* PictureRaw::u() const
-		{
-			if(!m_header.isValid()) return NULL;
-			switch (m_header.eColor)
-			{
-			case COLOR_E_YV12:
-				//yyyy vv uu
-				return m_buf.data() + m_header.y_stride*m_header.h + m_header.uv_stride * (m_header.h >> 1);
-			case COLOR_E_I420:
-				//yyyy uu vv
-				return m_buf.data() + m_header.y_stride*m_header.h;
-			case COLOR_E_YUY2:
-			case COLOR_E_UYVY:
-				return NULL;
-			case COLOR_E_RGB565:
-			case COLOR_E_RGB24:
-			case COLOR_E_RGB32:
-			case COLOR_E_RGBA:
-				return NULL;
-			default:
-				assert(! "不支持的像素格式");
-				return NULL;
-			}
-		}
+        const BYTE* PictureRaw::u() const
+        {
+                if(!m_format.isValid()) return NULL;
+                switch (m_format.eColor)
+                {
+                case COLOR_E_YV12:
+                        //yyyy vv uu
+                        return m_buf.data() + m_format.y_stride*m_format.h + m_format.v_stride * (m_format.h >> 1);
+                case COLOR_E_I420:
+                        //yyyy uu vv
+                        return m_buf.data() + m_format.y_stride*m_format.h;
+                case COLOR_E_YUY2:
+                case COLOR_E_UYVY:
+                        return NULL;
+                case COLOR_E_RGB565:
+                case COLOR_E_RGB24:
+                case COLOR_E_RGB32:
+                case COLOR_E_RGBA:
+                        return NULL;
+                default:
+                        assert(! "不支持的像素格式");
+                        return NULL;
+                }
+        }
 
-		const BYTE* PictureRaw::v() const
-		{
-			if(!m_header.isValid()) return NULL;
-			switch (m_header.eColor)
-			{
-			case COLOR_E_YV12:
-				//yyyy vv uu
-				return m_buf.data() + m_header.y_stride*m_header.h;
-			case COLOR_E_I420:
-				return m_buf.data() + m_header.y_stride*m_header.h + m_header.uv_stride * (m_header.h >> 1);
-			case COLOR_E_YUY2:
-			case COLOR_E_UYVY:
-				return NULL;
-			case COLOR_E_RGB565:
-			case COLOR_E_RGB24:
-			case COLOR_E_RGB32:
-			case COLOR_E_RGBA:
-				return NULL;
-			default:
-				assert(! "不支持的像素格式");
-				return NULL;
-			}
-		}
+        const BYTE* PictureRaw::v() const
+        {
+                if(!m_format.isValid()) return NULL;
+                switch (m_format.eColor)
+                {
+                case COLOR_E_YV12:
+                        //yyyy vv uu
+                        return m_buf.data() + m_format.y_stride*m_format.h;
+                case COLOR_E_I420:
+                        return m_buf.data() + m_format.y_stride*m_format.h + m_format.u_stride * (m_format.h >> 1);
+                case COLOR_E_YUY2:
+                case COLOR_E_UYVY:
+                        return NULL;
+                case COLOR_E_RGB565:
+                case COLOR_E_RGB24:
+                case COLOR_E_RGB32:
+                case COLOR_E_RGBA:
+                        return NULL;
+                default:
+                        assert(! "不支持的像素格式");
+                        return NULL;
+                }
+        }
+
+        const BYTE* PictureRaw::a() const
+        {
+                if(!m_format.isValid()) return NULL;
+                switch (m_format.eColor)
+                {
+                case COLOR_E_YV12:
+                case COLOR_E_I420:
+                case COLOR_E_YUY2:
+                case COLOR_E_UYVY:
+                case COLOR_E_RGB565:
+                case COLOR_E_RGB24:
+                case COLOR_E_RGB32:
+                case COLOR_E_RGBA:
+                        return NULL;
+                default:
+                        assert(! "不支持的像素格式");
+                        return NULL;
+                }
+        }
 
 }//namespace zMedia
 

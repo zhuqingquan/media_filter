@@ -3,14 +3,14 @@
 
 namespace zMedia
 {
-//#ifdef _WIN32
-//#include <windows.h>
-//#include <tchar.h>
-//#elif __linux__
+#ifdef _WIN32
+#include <windows.h>
+#include <tchar.h>
+#elif __linux__
 #define mmioFOURCC(ch0, ch1, ch2, ch3) \
     (((uint32_t)(uint8_t)(ch0)) | ((uint32_t)(uint8_t)(ch1) << 8) |\
     ((uint32_t)(uint8_t)(ch2) << 16) | ((uint32_t)(uint8_t)(ch3) << 24))
-//#endif
+#endif
 
 		//FOURCC define
 		/* yuyu		4:2:2 16bit, y-u-y-v, packed*/

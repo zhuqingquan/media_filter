@@ -10,25 +10,25 @@ using namespace zMedia;
 	{
 	}
 
-	bool PictureRaw::allocData( const PICTURE_HEADER& _header, const MemoryAllocator& allocator /*= MemoryAllocator()*/ )
+	bool PictureRaw::allocData( const PICTURE_FORMAT& _format, const MemoryAllocator& allocator /*= MemoryAllocator()*/ )
 	{
-		if(!_header.isValid())	return false;
-		int picRealSize = GetPictureSize(_header);
+		if(!_format.isValid())	return false;
+		int picRealSize = GetPictureSize(_format);
 		size_t totalMallocSize = picRealSize;//*/(size_t)m_maxPixels;
 		if(totalMallocSize!=m_buf.malloc(totalMallocSize, allocator))
 			return false;
 
-		m_header = _header;
+		m_format = _format;
 		return m_buf.data()!=NULL;			
 	}
 
-	bool PictureRaw::attachData( BYTE* pData, size_t len, const PICTURE_HEADER& _header )
+	bool PictureRaw::attachData( BYTE* pData, size_t len, const PICTURE_FORMAT& _format )
 	{
-		if(!_header.isValid())	return false;
+		if(!_format.isValid())	return false;
 		if(!m_buf.attachData(pData, len))
 			return false;
 
-		m_header = _header;
+		m_format = _format;
         return true;
 	}
 
