@@ -33,6 +33,8 @@ namespace zMedia
 		malloc_func malloc_function() const { return m_MallocFunc; }
 		free_func free_function() const { return m_FreeFunc; }
 
+        static const MemoryAllocator std_allocator;
+        
         friend bool operator==(const MemoryAllocator& lobj, const MemoryAllocator& robj);
 	private:
 		malloc_func m_MallocFunc;

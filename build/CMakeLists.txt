@@ -19,6 +19,13 @@ set(INC_DIR ../inc)
 include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${INC_DIR}")
 
-set(SRC_LIST ${SRC_DIR}/MediaData.cpp ${SRC_DIR}/MemoryAllocator.cpp)
+set(SRC_LIST 
+    ${SRC_DIR}/MediaData.cpp 
+    ${SRC_DIR}/MemoryAllocator.cpp
+    
+)
 
 add_library(media_filter STATIC ${SRC_LIST})
+
+install (TARGETS media_filter DESTINATION bin)
+install (FILES ${INC_DIR}/BoostInc.h ${INC_DIR}/MediaData.h ${INC_DIR}/MemoryAllocator.h DESTINATION include)
