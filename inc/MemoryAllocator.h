@@ -10,11 +10,11 @@
 #define _MEDIA_FILTER_MEMORY_ALLOCATOR_H_
 
 #include <stdlib.h>
-
+/*
 #ifndef __cdecl
 #define __cdecl __attribute__((__cdecl__))
 #endif
-
+*/
 namespace zMedia
 {
 	typedef void* (*malloc_func)(size_t size);

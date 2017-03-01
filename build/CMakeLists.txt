@@ -19,6 +19,9 @@ set(INC_DIR ../inc)
 include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${INC_DIR}")
 
+add_subdirectory(../googletest ../googletest/lib)
+#add_subdirectory(../test ../test)
+
 set(SRC_LIST 
     ${SRC_DIR}/MediaData.cpp 
     ${SRC_DIR}/MemoryAllocator.cpp
