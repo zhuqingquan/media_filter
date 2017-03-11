@@ -74,13 +74,14 @@ MediaBuffer::~MediaBuffer()
     {
         ff(m_data);
     }
+    size_t len = m_bufLen;
 	m_data = NULL;
 	m_bufLen = 0;
     m_payloadOffset = 0;
     m_payloadSize = 0;
 	m_isNeedFree = false;
 	m_allocator = MemoryAllocator();
-	return m_bufLen;
+	return len;
 }
 
 /*virtual*/bool MediaBuffer::attachData(BYTE* pData, size_t len, const MemoryAllocator& allocator/* = MemoryAllocator()*/)

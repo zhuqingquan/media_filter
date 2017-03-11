@@ -44,7 +44,7 @@ public:
     {
         if(payloadOffset>=m_bufLen) return false;
         int payloadsize_inc = payloadOffset - m_payloadOffset;//may be negitive
-        if(payloadsize_inc>m_payloadSize)
+        if(payloadsize_inc>0 && payloadsize_inc>m_payloadSize)
             return false;
         m_payloadOffset = payloadOffset;
         m_payloadSize -= payloadsize_inc;
