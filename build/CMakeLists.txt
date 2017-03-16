@@ -25,6 +25,8 @@ add_subdirectory(../googletest ../googletest/lib)
 set(SRC_LIST 
     ${SRC_DIR}/MediaData.cpp 
     ${SRC_DIR}/MemoryAllocator.cpp
+    ${SRC_DIR}/PictureInfo.cpp
+    ${SRC_DIR}/PcmData.cpp
     
 )
 

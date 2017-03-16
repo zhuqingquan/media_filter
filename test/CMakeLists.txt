@@ -3,7 +3,8 @@ cmake_minimum_required(VERSION 2.6)
 PROJECt(media_filter_unittest)
 
 set(SRC_LIST 
-    ./MediaData_test.cpp)
+    ./MediaData_test.cpp 
+    ./PictureInfo_test.cpp)
 
 set(LIB_PATH_LIST 
     ../googletest/lib 

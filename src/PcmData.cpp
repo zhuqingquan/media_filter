@@ -3,85 +3,78 @@
 #include <algorithm>
 
 using namespace zMedia;
+PcmData::PcmData( uint32_t channels, uint32_t sampleRate, AudioSampelTypeSize sampleType)
+    : m_PerSampleByteCount(sampleType)
+    , m_nSampleRate(sampleRate)
+    , m_nChannels(channels)
+    , m_nTimeStamp(0), m_nTimeCount(0)
+    , m_capacity(0)
+{
+}
 
-	PcmData::PcmData()
-		: m_PerSampleByteCount(AudioSampleSize_NONE)
-		, m_nSampleRate(0)
-		, m_nChannels(0)
-		, m_nVolume(0), m_bIsMuted(false)
-		, m_nDataSize(0)
-		, m_nTimeStamp(0), m_nTimeCount(0)
-	{
-	}
+PcmData::~PcmData()
+{
+    this->free();
+}
 
-	PcmData::PcmData( UINT channels, UINT sampleRate, AudioSampelTypeSize sampleType, UINT timecount, 
-						const MemoryAllocator& allocator/* = MemoryAllocator()*/)
-		: m_PerSampleByteCount(sampleType)
-		, m_nSampleRate(sampleRate)
-		, m_nChannels(channels)
-		, m_nVolume(0), m_bIsMuted(false)
-		, m_nDataSize(0)
-		, m_nTimeStamp(0), m_nTimeCount(0)
-	{
-		UINT capacity = m_nSampleRate * m_nChannels * m_PerSampleByteCount * timecount / 1000;
-		//assert(capacity>0);
-		if(capacity<=0)
-		{
-			assert(false);
-		}
-		m_buf.malloc(capacity, allocator);
-		m_nTimeCount = timecount;
-	}
+size_t PcmData::malloc_timecount(uint32_t timecount, MemoryAllocator allocator /*= MemoryAllocator()*/)
+{
+    size_t capacity = m_nSampleRate * m_nChannels * m_PerSampleByteCount * ((float)timecount / 1000);
+    if(capacity<=0)
+    {
+        assert(false);
+    }
+    if(capacity>m_buf.malloc(capacity, allocator))
+    {
+        m_buf.free();
+        return 0;
+    }
+    m_nTimeCount = timecount;
+    m_capacity = capacity;
+    return capacity;
+}
 
-	PcmData::~PcmData()
-	{
-        this->free();
-	}
+size_t PcmData::malloc_samplecount(uint32_t sampleCount, MemoryAllocator allocator /*= MemoryAllocator()*/)
+{
+    size_t capacity = sampleCount * m_nChannels * m_PerSampleByteCount;
+    if(capacity<=0)
+    {
+        assert(false);
+    }
+    if(capacity>m_buf.malloc(capacity, allocator))
+    {
+        m_buf.free();
+        return 0;
+    }
+    m_nTimeCount = ((float)sampleCount / m_nSampleRate) * 1000;
+    m_capacity = capacity;
+    return capacity;
+}
 
-    size_t PcmData::allocBuffer(size_t capacity, MemoryAllocator allocator /*= MemoryAllocator()*/)
- 	{
-        m_nDataSize = capacity;
-        return m_buf.malloc(capacity, allocator);
- 	}
+size_t PcmData::free( )
+{
+    size_t ret = m_buf.free();
+    m_nTimeCount = 0;
+    m_capacity = 0;
+    return ret;
+}
 
-	size_t PcmData::free( )
-	{
-        size_t ret = m_buf.free();
-		if(ret>0)
-		{
-			m_nDataSize = 0;
-			m_nTimeCount = 0;
-		}
-        return ret;
-	}
+size_t PcmData::appendData( const BYTE* data, size_t bytesCount )
+{
+    assert(bytesCount % sizeof(float) == 0);
+    if(m_nTimeCount==0 || m_capacity==0)
+        return 0;
+    size_t bytesAligned = bytesCount - (bytesCount % m_PerSampleByteCount);
+    if(bytesAligned==0 || data==NULL)
+        return 0;
 
-	void PcmData::setData( const BYTE* data, UINT bytesCount)
-	{
-		if(data==NULL || bytesCount<=0)
-			return;
+    size_t writeSize = std::min(bytesAligned, freeSize());
 
-		assert(bytesCount <= capacity());
-		assert(bytesCount % sampleSize_Channel() == 0);
-
-        BYTE* dst = m_buf.data();
-		memcpy(dst, data, bytesCount);
-		m_nDataSize = bytesCount;
-	}
-
-	UINT PcmData::appendData( const BYTE* data, UINT bytesCount )
-	{
-		assert(bytesCount % sizeof(float) == 0);
-		assert(capacity() >= m_nDataSize);
-
-		UINT emptySize = capacity() - m_nDataSize;
-		UINT writeSize = std::min(bytesCount, emptySize);
-
-
-		if (writeSize > 0)
-		{
-            BYTE* dst = m_buf.data();
-			memcpy( dst + m_nDataSize, data, writeSize);
-			m_nDataSize += writeSize;
-		}
-		return writeSize;
-	}
+    if (writeSize > 0)
+    {
+        BYTE* dst = m_buf.data() + m_buf.getPayloadOffset() + m_buf.getPayloadSize();
+        memcpy( dst, data, writeSize);
+        m_buf.setPayloadSize(m_buf.getPayloadSize()+writeSize);
+    }
+    return writeSize;
+}

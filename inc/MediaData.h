@@ -29,8 +29,22 @@ public:
 
 	~MediaBuffer();
 
+    /**
+     * @name    data
+     * @brief   Get the beginning pointer of the buffer
+     * @return  const BYTE* The beginning pointer of the buffer.
+     **/
 	const BYTE* data() const { return m_data; }
+    /**
+     * @name    data
+     * @brief   Get the beginning pointer of the buffer
+     * @return  const BYTE* The beginning pointer of the buffer.
+     **/
 	BYTE* data() { return m_data; }
+    /**
+     * @name    length
+     * @brief   Get the total bytes malloced in this buffer.
+     **/
 	size_t length() const { return m_bufLen; }
 	const MemoryAllocator& memAllocator() const { return m_allocator; }
 
