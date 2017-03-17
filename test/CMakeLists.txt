@@ -4,7 +4,9 @@ PROJECt(media_filter_unittest)
 
 set(SRC_LIST 
     ./MediaData_test.cpp 
-    ./PictureInfo_test.cpp)
+    ./PictureInfo_test.cpp
+    ./PcmData_test.cpp
+    )
 
 set(LIB_PATH_LIST 
     ../googletest/lib 
