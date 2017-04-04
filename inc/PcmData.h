@@ -31,6 +31,11 @@ namespace zMedia
 
 		~PcmData();
 
+		/**
+		 *	@name			data
+		 *	@brief	        Get the beginning pointer to this PcmData buffer.
+		 *	@return			BYTE* The beginning pointer to this PcmData buffer
+		 **/
 		inline const BYTE* data() const	{ return (BYTE*)m_buf.data(); }
 		inline BYTE* data() { return (BYTE*)m_buf.data(); }
         inline const MediaBuffer& buffer() const { return m_buf; }
