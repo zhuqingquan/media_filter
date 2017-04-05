@@ -48,9 +48,9 @@ namespace zMedia
             return m_buf.malloc(length, allocator);
         }
 
-        bool attachData(BYTE* data, size_t length)
+        bool attachData(BYTE* data, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
         {
-            return m_buf.attachData(data, length);
+            return m_buf.attachData(data, length, allocator);
         }
 
         size_t free()
@@ -60,7 +60,8 @@ namespace zMedia
 
         BYTE* data() { return m_buf.data(); }
         const BYTE* data() const { return m_buf.data(); }
-        size_t size() const { return m_buf.length(); }
+        const MediaBuffer& buffer() const { return m_buf; }
+        size_t size() const { return m_buf.getPayloadSize(); }
     private:
         PictureCodec(const PictureCodec& robj);
         PictureCodec& operator=(const PictureCodec& robj);
@@ -111,9 +112,9 @@ namespace zMedia
             return m_buf.malloc(length, allocator);
         }
 
-        bool attachData(BYTE* data, size_t length)
+        bool attachData(BYTE* data, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
         {
-            return m_buf.attachData(data, length);
+            return m_buf.attachData(data, length, allocator);
         }
 
         size_t free()
@@ -123,7 +124,8 @@ namespace zMedia
 
         BYTE* data() { return m_buf.data(); }
         const BYTE* data() const { return m_buf.data(); }
-        size_t size() const { return m_buf.length(); }
+        const MediaBuffer& buffer() const { return m_buf; }
+        size_t size() const { return m_buf.getPayloadSize(); }
     private:
         AudioCodec(const AudioCodec& robj);
         AudioCodec& operator=(const AudioCodec& robj);
