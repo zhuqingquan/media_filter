@@ -16,6 +16,11 @@ typedef uint8_t BYTE;
 
 namespace zMedia {
 
+/**
+ * @name    MediaBuffer
+ * @brief   Wrap of a memory buffer
+ *          have many function to support manager the start point, write pos, payload of the data.
+ **/
 class MediaBuffer {
 public:
 	typedef MediaBuffer SelfType;

@@ -27,7 +27,8 @@ set(SRC_LIST
     ${SRC_DIR}/MemoryAllocator.cpp
     ${SRC_DIR}/PictureInfo.cpp
     ${SRC_DIR}/PcmData.cpp
-    
+    ${SRC_DIR}/IMediaFilter.cpp
+    ${SRC_DIR}/BasicMediaFilter.cpp
 )
 
 add_library(media_filter STATIC ${SRC_LIST})

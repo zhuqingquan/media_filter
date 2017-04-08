@@ -19,6 +19,8 @@ namespace zMedia
 	class PcmData
 	{
 	public:
+        typedef PcmData SelfType;
+        typedef boost::shared_ptr<PcmData> SPtr;
 
 		/**
 		 *	@name			PcmData

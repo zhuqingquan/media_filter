@@ -9,8 +9,11 @@
 #define IMEDIAFILTER_H_
 
 #include "BoostInc.h"
-#include "IMediaData.h"
+#include "VideoData.h"
+#include "AudioData.h"
 #include <vector>
+#include <string>
+#include <map>
 
 namespace zMedia
 {
@@ -19,59 +22,34 @@ class IDataPuller;
 class IDataPusher;
 class IDataSink;
 
-/*
-class IDataPin{
-public:
-	IDataPin();
-	virtual ~IDataPin();
-public:
-	virtual int addFilter(const boost::shared_ptr<IMediaFilter>& in);
-	virtual int remFilter(const boost::shared_ptr<IMediaFilter>& in);
-	virtual int clear();
-	virtual int getFilter(std::vector<boost::shared_ptr<IMediaFilter> >& listFilter);
-protected:
-	boost::mutex mutexFilters;
-	std::vector<boost::shared_ptr<IMediaFilter> >vecFilters;
-};
-*/
-
 class IMediaFilter 
 {
 public:
 	typedef IMediaFilter SelfType;
 	typedef boost::shared_ptr<IMediaFilter> SPtr;
+    typedef std::wstring IDType;
 
 	IMediaFilter();
 	virtual ~IMediaFilter() = 0;
 
-	virtual int setDataPusher(const IDataPusher::SPtr& p);
-	virtual IDataPusher::SPtr& getDataPusher() const;
-	virtual int setDataPuller(const IDataPuller::SPtr& p);
-	virtual IDataPuller::SPtr& getDataPuller() const;
+    virtual const IDType& getID() const = 0;
 
-    virtual IDataSink::SPtr createPullerSink() = 0;
-    virtual bool releasePullerSink(IDataSink::SPtr& pullerSink) = 0;
+	virtual int setDataPusher(const boost::shared_ptr<IDataPusher>& p);
+	virtual boost::shared_ptr<IDataPusher> getDataPusher() const;
+	virtual int setDataPuller(const boost::shared_ptr<IDataPuller>& p);
+	virtual boost::shared_ptr<IDataPuller> getDataPuller() const;
+
+    virtual boost::shared_ptr<IDataSink> createPullerSink() = 0;
+    virtual bool releasePullerSink(boost::shared_ptr<IDataSink>& pullerSink) = 0;
 
     virtual bool add_v(VideoData::SPtr& vdata) = 0;
     virtual bool add_a(AudioData::SPtr& adata) = 0;
-
-	//virtual int pullData(PictrueData::SPtr& spr);
-	//virtual int onPull(PictrueData::SPtr& spr);
-	//virtual int onPush(const PictrueData::SPtr& spr);
-	//virtual int pullData(PcmData::SPtr& spr);
-	//virtual int onPull(PcmData::SPtr& spr);
-	//virtual int onPush(const PcmData::SPtr& spr);
-	//virtual int addPullFilter(const boost::shared_ptr<IMediaFilter>& in);
-	//virtual int remPullFilter(const boost::shared_ptr<IMediaFilter>& in);
-	//virtual int addPushFilter(const boost::shared_ptr<IMediaFilter>& in);
-	//virtual int remPushFilter(const boost::shared_ptr<IMediaFilter>& in);
 protected:
-	virtual int pushData(const VideoData::SPtr& spr);
-	virtual int pushData(const AudioData::SPtr& spr);
+	virtual int pushData(VideoData::SPtr& spr);
+	virtual int pushData(AudioData::SPtr& spr);
 
-	IDataPusher::SPtr pPusher;
-	IDataPuller::SPtr pPuller;
-
+	boost::shared_ptr<IDataPusher> m_Pusher;
+	boost::shared_ptr<IDataPuller> m_Puller;
 };
 
 class IDataPusher 
@@ -81,15 +59,15 @@ public:
 	typedef boost::shared_ptr<IDataPusher> SPtr;
 
 	IDataPusher();
-	virtual ~IDataPusher();
+	virtual ~IDataPusher() = 0;
 
-	virtual int addFilter(const boost::shared_ptr<IMediaFilter>& in);
-	virtual int remFilter(const boost::shared_ptr<IMediaFilter>& in);
+	virtual int addFilter(const IMediaFilter::SPtr& in);
+	virtual int remFilter(const IMediaFilter::SPtr& in);
 	virtual int clear();
-	virtual int getFilter(std::vector<boost::shared_ptr<IMediaFilter> >& listFilter);
+	virtual int getFilter(std::vector<IMediaFilter::SPtr>& listFilter);
 
-	virtual int push(const VideoData::SPtr& pic);
-	virtual int push(const AudioData::SPtr& pic);
+	virtual int push(VideoData::SPtr& pic) = 0;
+	virtual int push(AudioData::SPtr& pic) = 0;
 protected:
 	boost::mutex mutexFilters;
 	std::vector<boost::shared_ptr<IMediaFilter> >vecFilters;
@@ -113,23 +91,25 @@ class IDataPuller
 public:
 	typedef IDataPuller SelfType;
 	typedef boost::shared_ptr<IDataPuller> SPtr;
+    typedef std::map<IMediaFilter::IDType, VideoData::SPtr> DataCollectionV;
+    typedef std::map<IMediaFilter::IDType, AudioData::SPtr> DataCollectionA;
 
 	IDataPuller();
-	virtual ~IDataPuller();
+	virtual ~IDataPuller() = 0;
 
 	virtual int addSink(const IDataSink::SPtr& in);
 	virtual int remSink(const IDataSink::SPtr& in);
 	virtual int clear();
-	virtual int getFilter(std::vector<IDataSink::SPtr>& listFilter);
+	virtual int getFilter(std::vector<IDataSink::SPtr>& listSinks);
 
-	virtual int pull(PictrueData::SPtr& pic);
-	virtual int pull(PcmData::SPtr& pic);
+	virtual int pull(DataCollectionV& vDatas, UINT timeoutMillsec) = 0;
+	virtual int pull(DataCollectionA& aDatas, UINT timeoutMillsec) = 0;
 
 protected:
 	boost::mutex m_mutexSinks;
 	std::vector<IDataSink::SPtr> m_vecSinks;
 };
 
-} /* namespace vmixerapp */
+} /* namespace zMedia */
 
 #endif /* IMEDIAFILTER_H_ */
