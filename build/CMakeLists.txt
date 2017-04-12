@@ -34,4 +34,18 @@ set(SRC_LIST
 add_library(media_filter STATIC ${SRC_LIST})
 
 install (TARGETS media_filter DESTINATION bin)
-install (FILES ${INC_DIR}/BoostInc.h ${INC_DIR}/MediaData.h ${INC_DIR}/MemoryAllocator.h DESTINATION include)
+install (FILES ${INC_DIR}/BoostInc.h 
+    ${INC_DIR}/MediaData.h 
+    ${INC_DIR}/MemoryAllocator.h 
+    ${INC_DIR}/AudioData.h 
+    ${INC_DIR}/BasicMediaFilter.h 
+    ${INC_DIR}/CodecMediaData.h 
+    ${INC_DIR}/forcc.h 
+    ${INC_DIR}/IMediaFilter.h 
+    ${INC_DIR}/mediadata_tpl.h 
+    ${INC_DIR}/mediafilter.h 
+    ${INC_DIR}/PcmData.h 
+    ${INC_DIR}/PictureInfo.h 
+    ${INC_DIR}/RingBuffer.h 
+    ${INC_DIR}/VideoData.h 
+    DESTINATION include)
