@@ -13,39 +13,39 @@ configure_file(
     "${PROJECT_BINARY_DIR}/media_filter_cfg.h"
     )
 
-set(SRC_DIR ../src)
-set(INC_DIR ../inc)
+set(SRC_DIR ${PROJECT_SOURCE_DIR}/src)
+set(INC_DIR ${PROJECT_SOURCE_DIR}/inc)
 
 include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${INC_DIR}")
+include_directories(../zMemoryPool/include)
 
-add_subdirectory(../googletest ../googletest/lib)
-#add_subdirectory(../test ../test)
+file(GLOB_RECURSE INC_LIST ${INC_DIR}/*.h)
 
 set(SRC_LIST 
-    ${SRC_DIR}/MediaData.cpp 
+    ${SRC_DIR}/MediaBuffer.cpp 
     ${SRC_DIR}/MemoryAllocator.cpp
+    ${SRC_DIR}/RawPicture.cpp
     ${SRC_DIR}/PictureInfo.cpp
     ${SRC_DIR}/PcmData.cpp
-    ${SRC_DIR}/IMediaFilter.cpp
-    ${SRC_DIR}/BasicMediaFilter.cpp
+    ${SRC_DIR}/PcmDataHelper.cpp
 )
 
-add_library(media_filter STATIC ${SRC_LIST})
+add_library(media_filter STATIC ${SRC_LIST} ${INC_LIST})
 
-install (TARGETS media_filter DESTINATION bin)
-install (FILES ${INC_DIR}/BoostInc.h 
-    ${INC_DIR}/MediaData.h 
+source_group("Inc" FILES ${INC_LIST})
+source_group("Src" FILES ${SRC_LIST})
+
+install (TARGETS media_filter DESTINATION lib)
+install (FILES 
+    ${INC_DIR}/MediaBuffer.h 
+    ${INC_DIR}/TextureHolder.h
     ${INC_DIR}/MemoryAllocator.h 
     ${INC_DIR}/AudioData.h 
-    ${INC_DIR}/BasicMediaFilter.h 
     ${INC_DIR}/CodecMediaData.h 
-    ${INC_DIR}/forcc.h 
-    ${INC_DIR}/IMediaFilter.h 
+    ${INC_DIR}/fourcc.h 
     ${INC_DIR}/mediadata_tpl.h 
-    ${INC_DIR}/mediafilter.h 
     ${INC_DIR}/PcmData.h 
     ${INC_DIR}/PictureInfo.h 
-    ${INC_DIR}/RingBuffer.h 
     ${INC_DIR}/VideoData.h 
     DESTINATION include)

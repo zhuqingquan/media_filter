@@ -4,45 +4,63 @@
 
 #include <assert.h>
 #include <limits.h>
-#include "MediaData.h"
-#include "forcc.h"
+#include "MediaBuffer.h"
+#include "fourcc.h"
 #include "mediafilter.h"
 
 
 namespace zMedia
 {
-		//É«²Ê¿Õ¼ä define
+	// YUVçš„é¢œè‰²ç©ºé—´æ ‡å‡†
+	enum VideoColorSpace {
+		VIDEO_CS_DEFAULT,
+		VIDEO_CS_601,
+		VIDEO_CS_709,
+	};
+
+	// YUVå–å€¼åŒºé—´
+	enum video_range_type {
+		VIDEO_RANGE_DEFAULT,
+		VIDEO_RANGE_PARTIAL,
+		VIDEO_RANGE_FULL
+	};
+
+		//è‰²å½©ç©ºé—´ define
 		enum E_PIXFMT
 		{
 			PIXFMT_E_NONE = 0,
 			PIXFMT_E_YV12,  // yvu yvu
-			PIXFMT_E_I420,	//µÈÍ¬FOURCC_IYUV  //yuv yuv
-			PIXFMT_E_YUY2,	//µÈÍ¬FOURCC_YUYV
+			PIXFMT_E_I420,	//ç­‰åŒFOURCC_IYUV  //yuv yuv
+			PIXFMT_E_NV12,	// NV12, Y UV
+			PIXFMT_E_YUY2,	//ç­‰åŒFOURCC_YUYV
 			PIXFMT_E_UYVY,
 			PIXFMT_E_RGB565,   
 			PIXFMT_E_RGB24,  //BGR
 			PIXFMT_E_RGB32,  //BGRA BGRA
 			PIXFMT_E_RGBA,   //RGBA
             PIXFMT_E_BGRA,   //BGRA
+            PIXFMT_E_R8,        //  R 8bit for uint8_t data
 			PIXFMT_E_MAX,
+			PIXFMT_E_I420A = 101,	//ç­‰åŒI420, å¹¶é™„åŠ äº†é€æ˜é€šé“, æ˜¯ä¸€ç§è‡ªå®šä¹‰çš„éæ ‡å‡†æ ¼å¼ï¼Œè¿™ç§æ ¼å¼è¿˜æœªåœ¨PICTURE_FORMATä¸­æ”¯æŒè®¡ç®—å™¨å›¾ç‰‡å†…å­˜å¤§å°
 		};
 
-		//µ¥¸öÏñËØµÄ×Ö½Ú¸öÊı
-		//ĞèÅäºÏE_PIXFMTÊ¹ÓÃ£¬Èç PixelBytesCount[PIXFMT_E_RGB32], ÈôE_PIXFMTµÄĞŞ¸Äµ¼ÖÂPixelBytesCount[n]³ö´í£¬ÔòÓ¦Í¬²½ĞŞ¸ÄPixelBytesCount
-		static const float PixelBytesCount[] = {0, 1.5, 1.5, 2, 2, 2, 3, 4, 4, 4, 4};
+	extern int32_t PixfmtToFOURCC(E_PIXFMT pixfmt);
+	extern E_PIXFMT FOURCCToPixfmt(int32_t fourcc);
+
+		//å•ä¸ªåƒç´ çš„å­—èŠ‚ä¸ªæ•°
+		//éœ€é…åˆE_PIXFMTä½¿ç”¨ï¼Œå¦‚ PixelBytesCount[PIXFMT_E_RGB32], è‹¥E_PIXFMTçš„ä¿®æ”¹å¯¼è‡´PixelBytesCount[n]å‡ºé”™ï¼Œåˆ™åº”åŒæ­¥ä¿®æ”¹PixelBytesCount
+		static const float PixelBytesCount[] = {0, 1.5, 1.5, 1.5, 2, 2, 2, 3, 4, 4, 4, 1, 4};
 
 		struct PICTURE_FORMAT
 		{
 			PICTURE_FORMAT()
                 : w(0),h(0),ePixfmt(PIXFMT_E_NONE)
                 , stride(0),u_stride(0), v_stride(0), a_stride(0)
-                , pts(0)
             {}
 
-			PICTURE_FORMAT(int width, int height, E_PIXFMT colorspace)
-				: w(width), h(height), ePixfmt(colorspace)
+			PICTURE_FORMAT(int width, int height, E_PIXFMT pixfmt)
+				: w(width), h(height), ePixfmt(pixfmt)
 				, stride(0), u_stride(0), v_stride(0), a_stride(0)
-                                , pts(0)
 			{
 				switch(ePixfmt)
 				{
@@ -53,6 +71,7 @@ namespace zMedia
 				case PIXFMT_E_RGB32:
 				case PIXFMT_E_RGBA:
                 case PIXFMT_E_BGRA:
+                case PIXFMT_E_R8:
 				case PIXFMT_E_MAX:
 					y_stride =Align16Bytes((int) (w * PixelBytesCount[ePixfmt]));
 					break;
@@ -62,27 +81,31 @@ namespace zMedia
 					u_stride = Align16Bytes(w>>1);//w/2
 					v_stride = Align16Bytes(w>>1);//w/2
 					break;
+				case PIXFMT_E_NV12:
+					// NV12æ•°æ®æ—¶uv planarçš„strideä½¿ç”¨u_strideä¿å­˜ï¼Œv_strideæ— æ•ˆ
+					y_stride = Align16Bytes(w);
+					u_stride = Align16Bytes(w);
+					v_stride = 0;
+					break;
 				default:
 					break;
 				}
 			}
 
-			PICTURE_FORMAT(int width, int height, E_PIXFMT colorspace,
+			PICTURE_FORMAT(int width, int height, E_PIXFMT pixfmt,
                             int _stride, int _uStride, int _vStride, int _aStride)
-				: w(width), h(height), ePixfmt(colorspace)
+				: w(width), h(height), ePixfmt(pixfmt)
 				, stride(_stride), u_stride(_uStride), v_stride(_vStride), a_stride(_aStride)
-                                , pts(0)
 			{
 			}
 
-			PICTURE_FORMAT(int width, int height, E_PIXFMT colorspace, 
-                            int _stride, int _uStride, int _vStride, int _aStride,
-                            unsigned int _pts)
-				: w(width), h(height), ePixfmt(colorspace)
-				, stride(_stride), u_stride(_uStride), v_stride(_vStride), a_stride(_aStride)
-                                , pts(_pts)
-			{
-			}
+			//PICTURE_FORMAT(int width, int height, E_PIXFMT pixfmt, 
+            //                int _stride, int _uStride, int _vStride, int _aStride,
+            //                unsigned int _pts)
+			//	: w(width), h(height), ePixfmt(pixfmt)
+			//	, stride(_stride), u_stride(_uStride), v_stride(_vStride), a_stride(_aStride)
+			//{
+			//}
 
 			bool isValid() const 
 			{ 
@@ -97,29 +120,73 @@ namespace zMedia
 				case PIXFMT_E_RGB24:
 				case PIXFMT_E_RGB32:
 				case PIXFMT_E_RGBA:
-				case PIXFMT_E_BGRA:
+                case PIXFMT_E_BGRA:
+                case PIXFMT_E_R8:
 				case PIXFMT_E_MAX:
 					return y_stride>0;
 				case PIXFMT_E_YV12:
 				case PIXFMT_E_I420:
 					return y_stride>0 && u_stride>0 && v_stride>0;
+				case PIXFMT_E_NV12:
+					return y_stride > 0 && u_stride > 0;
 				default:
 					return false;
 				}
 			}
 
+			/**
+			 *	åˆ¤æ–­æ¯è¡Œæ•°æ®çš„åé¢æ˜¯å¦å­˜åœ¨paddingæ•°æ®
+			 **/
+			bool hasPadding() const 
+			{ 
+				switch (ePixfmt)
+				{
+				case PIXFMT_E_YUY2:
+				case PIXFMT_E_UYVY:
+				case PIXFMT_E_RGB565:
+				case PIXFMT_E_RGB24:
+				case PIXFMT_E_RGB32:
+				case PIXFMT_E_RGBA:
+                case PIXFMT_E_BGRA:
+                case PIXFMT_E_R8:
+				case PIXFMT_E_MAX:
+					return stride != w * PixelBytesCount[ePixfmt];		// strideä¸ç­‰äºw * BytesPerPixel
+				case PIXFMT_E_YV12:
+				case PIXFMT_E_I420:
+					return y_stride != w || u_stride != (w >> 1) || v_stride != (w >> 1);
+				case PIXFMT_E_NV12:
+					// NV12æ•°æ®æ—¶uv planarçš„strideä½¿ç”¨u_strideä¿å­˜ï¼Œv_strideæ— æ•ˆ
+					return y_stride != w || u_stride != (w >> 1);
+				default:
+					break;
+				}
+				return false;
+			}
+
+            bool operator==(const PICTURE_FORMAT& fmt) const
+            {
+                if(w!=fmt.w || h!=fmt.h 
+                    || stride!=fmt.stride || u_stride!=fmt.u_stride || v_stride!=fmt.v_stride
+                    || ePixfmt!=fmt.ePixfmt)
+                    return false;
+                return true;
+            }
+
 			int w;
 			int h;
 			E_PIXFMT ePixfmt;
+            VideoColorSpace colorspace = VIDEO_CS_DEFAULT;
 			union {
 				int stride;
 				int y_stride;
 			};
-			int u_stride;//½ö½öÆ½Ãæ¸ñÊ½ÓÃµ½£¬·ñÔò²»ÓÃ
-			int v_stride;//½ö½öÆ½Ãæ¸ñÊ½ÓÃµ½£¬·ñÔò²»ÓÃ
-			int a_stride;//½ö½öÆ½Ãæ¸ñÊ½ÓÃµ½£¬·ñÔò²»ÓÃ,when pixel format need A planer, we need this.
-            unsigned int pts;//after decoded we get pts.Not need dts in PICTURE after decoded.
-		};
+			int u_stride;//ä»…ä»…å¹³é¢æ ¼å¼ç”¨åˆ°ï¼Œå¦åˆ™ä¸ç”¨
+			int v_stride;//ä»…ä»…å¹³é¢æ ¼å¼ç”¨åˆ°ï¼Œå¦åˆ™ä¸ç”¨
+			int a_stride;//ä»…ä»…å¹³é¢æ ¼å¼ç”¨åˆ°ï¼Œå¦åˆ™ä¸ç”¨,when pixel format need A planer, we need this.
+            //uint64_t pts = 0;//after decoded we get pts.Not need dts in PICTURE after decoded.
+			
+			bool isDirectionDownToUp = false;  //å›¾ç‰‡å­˜åœ¨å†…å­˜ä¸­çš„æ–¹å‘ true: down to up, //false: up to down.!
+		};//struct PICTURE_FORMAT
 
 		inline int GetBitCount(E_PIXFMT ePixfmt)
 		{
@@ -145,6 +212,9 @@ namespace zMedia
 			case PIXFMT_E_BGRA:
 				nBitCount = 32;
 				break;
+            case PIXFMT_E_R8:
+                nBitCount = 8;
+                break;
 			default:
 				assert(! "GetBitCount not support this pixel format");
 			}
@@ -159,222 +229,45 @@ namespace zMedia
 			{
 			case PIXFMT_E_YV12:
 			case PIXFMT_E_I420:
-				nByteSize = pH.y_stride * pH.h + pH.u_stride * (pH.h >> 1) + pH.v_stride * (pH.h >> 1);
-                nByteSize = Align16Bytes(nByteSize);
+            {
+                int heightHalf = (pH.h + 1) >> 1;
+                nByteSize = pH.y_stride * pH.h + pH.u_stride * heightHalf + pH.v_stride * heightHalf;
+                //nByteSize = Align16Bytes(nByteSize);
 				break;
+            }
 			case PIXFMT_E_YUY2:
 			case PIXFMT_E_UYVY:
 			case PIXFMT_E_RGB565:
 			case PIXFMT_E_RGB24:
 			case PIXFMT_E_RGB32:
 			case PIXFMT_E_RGBA:
+            case PIXFMT_E_BGRA:
+            case PIXFMT_E_R8:
 				nByteSize = pH.y_stride * pH.h;
-                nByteSize = Align16Bytes(nByteSize);
+                //nByteSize = Align16Bytes(nByteSize);
 				break;
 			default:
-				assert(! "GetBitCount²»Ö§³ÖµÄ¸ñÊ½");
+				assert(! "GetBitCountä¸æ”¯æŒçš„æ ¼å¼");
 			}
 
 			return nByteSize;
 		}
 
-        // ÊÓÆµÊı¾İ¶ÔÏó
-        // composite with PICTURE_FORMAT and MediaBuffer
-        class PictureRaw
-        {
-        public:
-            typedef PictureRaw SelfType;
-            typedef boost::shared_ptr<PictureRaw> SPtr;
-
-            PictureRaw();
-            ~PictureRaw();
-
-            //functions for get the information about this picture
-            inline const PICTURE_FORMAT& format() const { return m_format; }
-            inline const MediaBuffer& buffer() const { return m_buf; }
-            inline const BYTE* data() const { return m_buf.data(); }
-            inline BYTE* data() { return m_buf.data(); }
-            size_t size() const	{ return m_format.isValid() ? GetPictureSize(m_format) : 0; }
-            inline const BYTE* rgb() const;
-            inline const BYTE* yuv() const;
-            inline const BYTE* y() const;
-            inline const BYTE* u() const;
-            inline const BYTE* v() const;
-            inline const BYTE* a() const;
-
-            /**
-             *	@name			allocData
-             *	@brief			¸ù¾İ²ÎÊı_formatÉêÇëÓÃÓÚ±£´æÍ¼Æ¬Êı¾İµÄÄÚ´æ¿Õ¼ä
-             *					ÓÃ»§¿ÉÌá¹©allocatorÖ¸¶¨ÄÚ´æÉêÇëÒÔ¼°ÊÍ·ÅÊ¹ÓÃµÄº¯Êı£¬Èç¹ûÎ´Ö¸¶¨£¬ÔòÄ¬ÈÏÊ¹ÓÃBigBufferManagerÖĞÌá¹©µÄ¹²ÏíÄÚ´æ¹ÜÀí·½·¨
-             *	@param[in]		const PICTURE_FORMAT & _format Í¼Æ¬µÄÊôĞÔ
-             *	@param[in]		const MemoryAllocator & allocator ÄÚ´æÉêÇëÊÍ·Å¶ÔÏó
-             *	@return			bool true--³É¹¦  false--Ê§°Ü£¬¿ÉÄÜ_formatÖ¸¶¨µÄÍ¼Æ¬ÊôĞÔ²»ÕıÈ·£¬»òÕßÉêÇëÄÚ´æÊ§°Ü
-             **/
-            bool allocData(const PICTURE_FORMAT& _format, const MemoryAllocator& allocator = MemoryAllocator());
-            /**
-             *	@name			attachData
-             *	@brief			½«µ±Ç°¶ÔÏóÓëÒÑÉêÇëµÄÄÚ´æ°ó¶¨
-             *					µ±Ç°¶ÔÏó±»ÊÍ·ÅÊ±£¬²»»áÊÍ·Å°ó¶¨µÄÄÚ´æ£¬ÓÃ»§ĞèÒª×Ô¼º¸ºÔğÊÍ·ÅÄÚ´æ
-             *					´Ë´¦°ó¶¨ÊÇ²»¼á³ÖÊı¾İÊÇ·ñÎª¿ÕÒÔ¼°Êı¾İµÄ³¤¶ÈÊÇ·ñ·ûºÏ_formatÖ¸¶¨µÄÍ¼Æ¬ÊôĞÔËùĞèÒªµÄÊı¾İ³¤¶È
-             *					Èôµ±Ç°¶ÔÏóÒÑÓĞÊı¾İ£¨ÉêÇëµÄ»òÕß°ó¶¨µÄ£©ÔòÖ®Ç°µÄÊı¾İ½«²»ÔÙÒıÓÃ£¬ÉêÇëµÄ½«±»ÊÍ·Å£¬°ó¶¨µÄ½«²»ÔÙ°ó¶¨
-             *	@param[in]		BYTE * pData ÓÃ»§ÄÚ´æ¿éÊ×µØÖ·
-             *	@param[in]		size_t len ÄÚ´æ¿é´óĞ¡
-             *	@param[in]		const PICTURE_FORMAT & _format Í¼Æ¬ÊôĞÔ
-             **/
-            bool attachData(BYTE* pData, size_t len, const PICTURE_FORMAT& _format, const MemoryAllocator& allocator = MemoryAllocator());
-
-            void freeData();
-
-            void setTimestamp(int64_t pts) { m_format.pts = pts; }
-            int64_t getTimestamp() const { return m_format.pts; }
-
-        private:
-            PictureRaw(const PictureRaw& robj);
-            PictureRaw& operator=(const PictureRaw& robj);
-
-            PICTURE_FORMAT m_format;
-            MediaBuffer m_buf;
-        };
-
-        const BYTE* PictureRaw::rgb() const
-        {
-            if(!m_format.isValid()) return NULL;
-            switch (m_format.ePixfmt)
-            {
-            case PIXFMT_E_YV12:
-            case PIXFMT_E_I420:
-            case PIXFMT_E_YUY2:
-            case PIXFMT_E_UYVY:
-                return NULL;
-            case PIXFMT_E_RGB565:
-            case PIXFMT_E_RGB24:
-            case PIXFMT_E_RGB32:
-            case PIXFMT_E_RGBA:
-            case PIXFMT_E_BGRA:
-                return m_buf.data();
-            default:
-                assert(! "²»Ö§³ÖµÄÏñËØ¸ñÊ½");
-                return NULL;
-            }
-        }
-
-        const BYTE* PictureRaw::yuv() const
-        {
-            if(!m_format.isValid()) return NULL;
-            switch (m_format.ePixfmt)
-            {
-            case PIXFMT_E_YV12:
-            case PIXFMT_E_I420:
-            case PIXFMT_E_YUY2:
-            case PIXFMT_E_UYVY:
-                return m_buf.data();
-            case PIXFMT_E_RGB565:
-            case PIXFMT_E_RGB24:
-            case PIXFMT_E_RGB32:
-            case PIXFMT_E_RGBA:
-            case PIXFMT_E_BGRA:
-                return NULL;
-            default:
-                assert(! "²»Ö§³ÖµÄÏñËØ¸ñÊ½");
-                return NULL;
-            }
-        }
-
-        const BYTE* PictureRaw::y() const
-        {
-            if(!m_format.isValid()) return NULL;
-            switch (m_format.ePixfmt)
-            {
-            case PIXFMT_E_YV12:
-            case PIXFMT_E_I420:
-                return m_buf.data();
-            case PIXFMT_E_YUY2:
-            case PIXFMT_E_UYVY:
-                return NULL;
-            case PIXFMT_E_RGB565:
-            case PIXFMT_E_RGB24:
-            case PIXFMT_E_RGB32:
-            case PIXFMT_E_RGBA:
-            case PIXFMT_E_BGRA:
-                return NULL;
-            default:
-                assert(! "²»Ö§³ÖµÄÏñËØ¸ñÊ½");
-                return NULL;
-            }
-        }
-
-        const BYTE* PictureRaw::u() const
-        {
-            if(!m_format.isValid()) return NULL;
-            switch (m_format.ePixfmt)
-            {
-            case PIXFMT_E_YV12:
-                //yyyy vv uu
-                return m_buf.data() + m_format.y_stride*m_format.h + m_format.v_stride * (m_format.h >> 1);
-            case PIXFMT_E_I420:
-                //yyyy uu vv
-                return m_buf.data() + m_format.y_stride*m_format.h;
-            case PIXFMT_E_YUY2:
-            case PIXFMT_E_UYVY:
-                return NULL;
-            case PIXFMT_E_RGB565:
-            case PIXFMT_E_RGB24:
-            case PIXFMT_E_RGB32:
-            case PIXFMT_E_RGBA:
-            case PIXFMT_E_BGRA:
-                return NULL;
-            default:
-                assert(! "²»Ö§³ÖµÄÏñËØ¸ñÊ½");
-                return NULL;
-            }
-        }
-
-        const BYTE* PictureRaw::v() const
-        {
-            if(!m_format.isValid()) return NULL;
-            switch (m_format.ePixfmt)
-            {
-            case PIXFMT_E_YV12:
-                //yyyy vv uu
-                return m_buf.data() + m_format.y_stride*m_format.h;
-            case PIXFMT_E_I420:
-                return m_buf.data() + m_format.y_stride*m_format.h + m_format.u_stride * (m_format.h >> 1);
-            case PIXFMT_E_YUY2:
-            case PIXFMT_E_UYVY:
-                return NULL;
-            case PIXFMT_E_RGB565:
-            case PIXFMT_E_RGB24:
-            case PIXFMT_E_RGB32:
-            case PIXFMT_E_RGBA:
-            case PIXFMT_E_BGRA:
-                return NULL;
-            default:
-                assert(! "²»Ö§³ÖµÄÏñËØ¸ñÊ½");
-                return NULL;
-            }
-        }
-
-        const BYTE* PictureRaw::a() const
-        {
-            if(!m_format.isValid()) return NULL;
-            switch (m_format.ePixfmt)
-            {
-            case PIXFMT_E_YV12:
-            case PIXFMT_E_I420:
-            case PIXFMT_E_YUY2:
-            case PIXFMT_E_UYVY:
-            case PIXFMT_E_RGB565:
-            case PIXFMT_E_RGB24:
-            case PIXFMT_E_RGB32:
-            case PIXFMT_E_RGBA:
-            case PIXFMT_E_BGRA:
-                return NULL;
-            default:
-                assert(! "²»Ö§³ÖµÄÏñËØ¸ñÊ½");
-                return NULL;
-            }
-        }
-
+	/**
+	 * @brief ç¼–ç åçš„è§†é¢‘å¸§çš„ç±»å‹
+	 */
+	enum EncVideoFrameType
+    {
+        Frame_UNKNOW      = 0xFF,
+        Frame_I     = 0,
+        Frame_P     = 1,
+        Frame_B     = 2,
+        Frame_PSEI  = 3,        // 0 - 3 is same with YY video packet's frame type.
+        Frame_IDR   = 4,
+        Frame_SPS   = 32,       // SPSï¼Œæ­¤å¤„ä½¿ç”¨32ä¸å‰é¢çš„æšä¸¾å€¼åœ¨æ•°å€¼ä¸Šéš”ç¦»å¼€ï¼Œç”¨æˆ·å¯ä»¥é€šè¿‡æˆ–æ“ä½œåˆ¤æ–­æ•°æ®æ˜¯å¦åŒæ—¶åŒ…å«SPSä¸PPSï¼Œæ¯”å¦‚ val | Frame_SPS ä¸ºçœŸï¼Œåˆ™åŒ…å«SPS
+        Frame_PPS   = 64,       // PPSï¼Œæ­¤å¤„ä½¿ç”¨32ä¸å‰é¢çš„æšä¸¾å€¼åœ¨æ•°å€¼ä¸Šéš”ç¦»å¼€ï¼Œç”¨æˆ·å¯ä»¥é€šè¿‡æˆ–æ“ä½œåˆ¤æ–­æ•°æ®æ˜¯å¦åŒæ—¶åŒ…å«SPSä¸PPSï¼Œæ¯”å¦‚ val | Frame_SPS ä¸ºçœŸï¼Œåˆ™åŒ…å«PPS
+        Frame_HEVCHeader= 7,
+	};
 }//namespace zMedia
 
 #endif //_MEDIA_FILTER_PICTURE_INFO_H_

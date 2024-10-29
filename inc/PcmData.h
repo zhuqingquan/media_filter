@@ -2,9 +2,8 @@
 #define _MEDIA_FILTER_PCM_DATA_H_
  
 #include <assert.h>
-#include "BoostInc.h"
-#include "mediafilter.h"
-#include "MediaData.h"
+#include "MediaBuffer.h"
+#include "FrameMetaData.h"
 
 namespace zMedia
 {
@@ -16,11 +15,11 @@ namespace zMedia
 		AudioSampleSize_FLOAT = sizeof(float)
 	};
 
-	class PcmData
+	class PcmData : public FrameMetaDataValid
 	{
 	public:
         typedef PcmData SelfType;
-        typedef boost::shared_ptr<PcmData> SPtr;
+        typedef std::shared_ptr<PcmData> SPtr;
 
 		/**
 		 *	@name			PcmData
@@ -36,17 +35,19 @@ namespace zMedia
 		/**
 		 *	@name			data
 		 *	@brief	        Get the beginning pointer to this PcmData buffer.
-		 *	@return			BYTE* The beginning pointer to this PcmData buffer
+		 *	@return			uint8_t* The beginning pointer to this PcmData buffer
 		 **/
-		inline const BYTE* data() const	{ return (BYTE*)m_buf.data(); }
-		inline BYTE* data() { return (BYTE*)m_buf.data(); }
+		inline const uint8_t* data() const	{ return (uint8_t*)m_buf.data(); }
+		inline uint8_t* data() { return (uint8_t*)m_buf.data(); }
+		inline const uint8_t* payload() const { return (uint8_t*)m_buf.payload(); }
+		inline uint8_t* payload() { return (uint8_t*)m_buf.payload(); }
         inline const MediaBuffer& buffer() const { return m_buf; }
         const MemoryAllocator& memAllocator() const { return m_buf.memAllocator(); }
 
 		/**
 		 *	@name			allocBuffer
 		 *	@brief			Malloc memory for save PCM data, buffer size is based on the param in constructor
-		 *	@param[in]		malloc_func malloc_f ·ÖÅäÄÚ´æµÄ·½·¨
+		 *	@param[in]		malloc_func malloc_f åˆ†é…å†…å­˜çš„æ–¹æ³•
 		 *	@param[in]		uint32_t timecount The total time spended to play the data in the obj.In millsec
          *	                Capacity = sampleRate * channels * BytesPerSample * timecount / 1000
 		 *	@return			void 
@@ -55,13 +56,13 @@ namespace zMedia
 		/**
 		 *	@name			allocBuffer
 		 *	@brief			Malloc memory for save PCM data, buffer size is based on the param in constructor
-		 *	@param[in]		malloc_func malloc_f ·ÖÅäÄÚ´æµÄ·½·¨
-		 *	@param[in]		uint32_t sampleCount The total sample count in the obj.
+		 *	@param[in]		malloc_func malloc_f åˆ†é…å†…å­˜çš„æ–¹æ³•
+		 *	@param[in]		uint32_t sampleCountPerChannel The total sample count in the obj.
          *	                This is the sample count of every channel.
-         *	                Capacity = sampleCount * channels * BytesPerSample
+         *	                Capacity = sampleCountPerChannel * channels * BytesPerSample
 		 *	@return			void 
 		 **/
-		size_t malloc_samplecount(uint32_t sampleCount, MemoryAllocator allocator = MemoryAllocator());
+		size_t malloc_samplecount(uint32_t sampleCountPerChannel, MemoryAllocator allocator = MemoryAllocator());
 		/**
 		 *	@name			free
 		 *	@brief			free the memory allocate by malloc func.
@@ -72,27 +73,27 @@ namespace zMedia
 		inline uint32_t sampleRate() const{ return m_nSampleRate; }
 		inline uint32_t channels() const { return m_nChannels; }
 
-		void setTimeStamp(long nTimeStamp){m_nTimeStamp = nTimeStamp;}
-		inline long getTimeStamp() const {return m_nTimeStamp;}
+		void setTimeStamp(uint64_t nTimeStamp){m_nTimeStamp = nTimeStamp;}
+		inline uint64_t getTimeStamp() const {return m_nTimeStamp;}
 		/**
 		 *	@name			getTimeCount
 		 *	@brief			Get the total time count in this obj.
          *	                This value is const after malloc_xxx called.
-		 *	@return			long Êı¾İµÄÊ±¼ä³¤¶È£¬µ¥Î»ºÁÃë
+		 *	@return			long æ•°æ®çš„æ—¶é—´é•¿åº¦ï¼Œå•ä½æ¯«ç§’
 		 **/
 		inline long getTimeCount() const { return m_nTimeCount; }
 
 		/**
 		 *	@name			sampleCount_Channel
-		 *	@brief			»ñÈ¡µ¥¸öÍ¨µÀµÄ²ÉÑù¸öÊı×ÜÊı
-		 *	@return			uint32_t µ¥¸öÍ¨µÀµÄ²ÉÑù¸öÊı×ÜÊı 
+		 *	@brief			è·å–å•ä¸ªé€šé“çš„é‡‡æ ·ä¸ªæ•°æ€»æ•°
+		 *	@return			uint32_t å•ä¸ªé€šé“çš„é‡‡æ ·ä¸ªæ•°æ€»æ•° 
 		 **/
-		inline uint32_t sampleCountPerChannel() const { return sampleCount() / m_nChannels; }
-		inline uint32_t sampleCount() const { return size() / m_PerSampleByteCount; }
+		inline uint32_t sampleCountPerChannel() const { return m_nChannels==0 ? 0 : sampleCount() / m_nChannels; }
+		inline uint32_t sampleCount() const { return 0== m_PerSampleByteCount ? 0 : (uint32_t)size() / m_PerSampleByteCount; }
 		/**
 		 *	@name			sampleSize_Channel
-		 *	@brief			»ñÈ¡ËùÓĞÍ¨µÀµÄµ¥¸ö²ÉÑùµÄ×Ö½ÚÊı
-		 *	@return			uint32_t ËùÓĞÍ¨µÀµÄµ¥¸ö²ÉÑùµÄ×Ö½ÚÊı
+		 *	@brief			è·å–æ‰€æœ‰é€šé“çš„å•ä¸ªé‡‡æ ·çš„å­—èŠ‚æ•°
+		 *	@return			uint32_t æ‰€æœ‰é€šé“çš„å•ä¸ªé‡‡æ ·çš„å­—èŠ‚æ•°
 		 **/
 		inline uint32_t sampleSizeAllChannels() { return m_PerSampleByteCount*m_nChannels; }
 		inline AudioSampelTypeSize sampleSize() { return m_PerSampleByteCount; }
@@ -117,27 +118,39 @@ namespace zMedia
 		inline void clear() { m_buf.setPayloadOffset(0); m_buf.setPayloadSize(0); }
 
 		/**
+		 *	@brief å½“ä½¿ç”¨è€…æ˜¯ç›´æ¥é€šè¿‡data()è·å–åˆ°å†…éƒ¨æŒ‡é’ˆå¹¶å°†æ•°æ®æ‹·è´è¿›å»æ—¶éœ€è¦ä½¿ç”¨æ­¤æ¥å£æ­£ç¡®è®¾ç½®æœ‰æ•ˆæ•°æ®çš„å¤§å°
+		 **/
+		inline void setPayloadSize(uint32_t payloadSize) { m_buf.setPayloadSize(payloadSize); }
+		inline void setPayloadOffset(uint32_t offset) { m_buf.setPayloadOffset(offset); }
+
+		/**
 		 *	@name			appendData
 		 *	@brief	        copy and append data to the tail of the buffer.	
 		 *	@return			size_t Bytes of data that copyed.
 		 **/
-		size_t appendData(const BYTE* data, size_t bytesCount);
+		size_t appendData(const uint8_t* data, size_t bytesCount);
+        bool isSilence();
 
 	private:
-		//Òò¸´ÖÆÓë¸³Öµ¶¼±ØĞë¿½±´Êı¾İ£¬ÍÆ¼öÊ¹ÓÃÖÇÄÜÖ¸Õë£¬Òò´Ë²»Ö§³Ö¸´ÖÆÓë¸³Öµ
+		//å› å¤åˆ¶ä¸èµ‹å€¼éƒ½å¿…é¡»æ‹·è´æ•°æ®ï¼Œæ¨èä½¿ç”¨æ™ºèƒ½æŒ‡é’ˆï¼Œå› æ­¤ä¸æ”¯æŒå¤åˆ¶ä¸èµ‹å€¼
 		PcmData(const PcmData& robj);
 		PcmData& operator=(const PcmData& robj);
 
 	private:
 		AudioSampelTypeSize m_PerSampleByteCount;
-		uint32_t m_nSampleRate; // ²ÉÑùÆµÂÊ //Ä¬ÈÏ44HZ
-		uint32_t m_nChannels; // ÉùµÀ  //Ä¬ÈÏ2ÉùµÀ
-		int m_nTimeCount;	//µ±Ç°bufferÄÜ¹»±£´æÉùÒôÊı¾İµÄÊ±¼ä¿ç¶È£¬µ¥Î»ÎªºÁÃë
-		long m_nTimeStamp; //µ±Ç°Êı¾İµÄPTSÊ±¼ä´Á
+		uint32_t m_nSampleRate; // é‡‡æ ·é¢‘ç‡ //é»˜è®¤44HZ
+		uint32_t m_nChannels; // å£°é“  //é»˜è®¤2å£°é“
+		int m_nTimeCount;	//å½“å‰bufferèƒ½å¤Ÿä¿å­˜å£°éŸ³æ•°æ®çš„æ—¶é—´è·¨åº¦ï¼Œå•ä½ä¸ºæ¯«ç§’
+		uint64_t m_nTimeStamp; //å½“å‰æ•°æ®çš„PTSæ—¶é—´æˆ³
 
         size_t m_capacity;
         MediaBuffer m_buf;
 	};
+
+    /**
+     *  å¤åˆ¶ä¸€å¸§éŸ³é¢‘æ•°æ®çš„PCM
+     **/
+    PcmData::SPtr copyPcmFrame(const PcmData::SPtr& src);
 }//namespace zMedia
 
 #endif//_MEDIA_FILTER_PCM_DATA_H_

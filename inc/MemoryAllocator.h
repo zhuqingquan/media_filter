@@ -2,7 +2,7 @@
  *	@date		2015:12:3   17:07
  *	@name	 	MemoryAllocator.h
  *	@author		zhuqingquan	
- *	@brief		负责内存申请与释放的对象
+ *	@brief		璐熻矗鍐呭瓨鐢宠涓庨噴鏀剧殑瀵硅薄
  **/
 
 //#pragma once

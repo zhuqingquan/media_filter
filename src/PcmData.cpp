@@ -1,6 +1,7 @@
 #include "PcmData.h"
 #include <assert.h>
 #include <algorithm>
+#include <cstring>
 
 using namespace zMedia;
 PcmData::PcmData( uint32_t channels, uint32_t sampleRate, AudioSampelTypeSize sampleType)
@@ -34,9 +35,9 @@ size_t PcmData::malloc_timecount(uint32_t timecount, MemoryAllocator allocator /
     return capacity;
 }
 
-size_t PcmData::malloc_samplecount(uint32_t sampleCount, MemoryAllocator allocator /*= MemoryAllocator()*/)
+size_t PcmData::malloc_samplecount(uint32_t sampleCountPerChannel, MemoryAllocator allocator /*= MemoryAllocator()*/)
 {
-    size_t capacity = sampleCount * m_nChannels * m_PerSampleByteCount;
+    size_t capacity = sampleCountPerChannel * m_nChannels * m_PerSampleByteCount;
     if(capacity<=0)
     {
         assert(false);
@@ -46,7 +47,8 @@ size_t PcmData::malloc_samplecount(uint32_t sampleCount, MemoryAllocator allocat
         m_buf.free();
         return 0;
     }
-    m_nTimeCount = ((float)sampleCount / m_nSampleRate) * 1000;
+    m_nTimeCount = ((float)sampleCountPerChannel / m_nSampleRate) * 1000;
+    m_nTimeCount = m_nTimeCount > 0 ? m_nTimeCount : 1;
     m_capacity = capacity;
     return capacity;
 }
@@ -61,7 +63,7 @@ size_t PcmData::free( )
 
 size_t PcmData::appendData( const BYTE* data, size_t bytesCount )
 {
-    assert(bytesCount % sizeof(float) == 0);
+    assert(bytesCount % m_PerSampleByteCount == 0);
     if(m_nTimeCount==0 || m_capacity==0)
         return 0;
     size_t bytesAligned = bytesCount - (bytesCount % m_PerSampleByteCount);
@@ -78,3 +80,22 @@ size_t PcmData::appendData( const BYTE* data, size_t bytesCount )
     }
     return writeSize;
 }
+
+bool PcmData::isSilence() {
+    if (size() == 0)
+        return true;
+    uint8_t *ptr = (uint8_t *)data();
+    if (*ptr == 0 && memcmp(ptr, ptr + 1, size() - 1) == 0)
+      return true;
+    return false;
+}
+
+PcmData::SPtr zMedia::copyPcmFrame(const PcmData::SPtr& src)
+{
+    PcmData::SPtr result = std::make_shared<zMedia::PcmData>(src->channels(), src->sampleRate(), src->sampleSize());
+    result->malloc_samplecount(src->sampleCountPerChannel());
+    result->appendData(src->data(), src->capacity());
+    return result;
+}
+
+

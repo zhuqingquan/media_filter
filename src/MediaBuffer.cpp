@@ -1,11 +1,25 @@
-#include "MediaData.h"
+#include "MediaBuffer.h"
 #include "mediafilter.h"
+#include <assert.h>
+#include "MediaMemPool.h"
 
 using namespace zMedia;
 
+void* malloc_from_memory_pool(size_t size)
+{
+    return MediaMempool_malloc(size);
+}
+
+void free_memory_pool(void* mem)
+{
+    MediaMempool_free(mem);
+}
+
+/*extern*/ MemoryAllocator gMemAllocatorMempool( malloc_from_memory_pool, free_memory_pool );
+
 MediaBuffer::MediaBuffer()
     : m_data(NULL), m_bufLen(0)
-    , m_type(0)
+    , m_type(MEDIA_BUFFER_TYPE_UNKNOW)
     , m_isNeedFree(false)
     , m_payloadOffset(0), m_payloadSize(0)
 {
@@ -14,16 +28,16 @@ MediaBuffer::MediaBuffer()
 
 MediaBuffer::MediaBuffer(size_t length, const MemoryAllocator& allocator /*= MemoryAllocator()*/)
     : m_data(NULL), m_bufLen(0)
-    , m_type(0)
+    , m_type(MEDIA_BUFFER_TYPE_UNKNOW)
     , m_isNeedFree(false)
     , m_payloadOffset(0), m_payloadSize(0)
 {
     malloc(length, allocator);
 }
 
-MediaBuffer::MediaBuffer(BYTE* pData, size_t len, const MemoryAllocator& allocator /*= MemoryAllocator()*/)
+MediaBuffer::MediaBuffer(uint8_t* pData, size_t len, const MemoryAllocator& allocator /*= MemoryAllocator()*/)
     : m_data(NULL), m_bufLen(0)
-    , m_type(0)
+    , m_type(MEDIA_BUFFER_TYPE_UNKNOW)
     , m_isNeedFree(false)
     , m_payloadOffset(0), m_payloadSize(0)
 {
@@ -38,7 +52,7 @@ MediaBuffer::~MediaBuffer()
 /*virtual*/ size_t MediaBuffer::malloc(size_t length, const MemoryAllocator& allocator/* = MemoryAllocator()*/)
 {
     //malloc just do malloc, if there is already malloced or attachdata before, malloc failed.
-	if(m_data || m_bufLen>0 )
+	if(m_data || m_bufLen>0 || m_type != MEDIA_BUFFER_TYPE_UNKNOW)
 	{
         return 0;
 	}
@@ -54,12 +68,13 @@ MediaBuffer::~MediaBuffer()
         allocatorTmp = zMedia::MemoryAllocator::std_allocator;
         mf = allocatorTmp.malloc_function();
     }
-	BYTE* pdata = (BYTE*)mf(realLen);
+	uint8_t* pdata = (uint8_t*)mf(realLen);
 	assert(pdata);
 	if(!pdata)	return 0;
 	m_data = pdata;
 	m_bufLen = length;
     m_allocator = allocatorTmp;
+	m_type = MEDIA_BUFFER_TYPE_MEMORY;
 	return m_bufLen;
 }
 
@@ -81,21 +96,22 @@ MediaBuffer::~MediaBuffer()
     m_payloadSize = 0;
 	m_isNeedFree = false;
 	m_allocator = MemoryAllocator();
+	m_type = MEDIA_BUFFER_TYPE_UNKNOW;
 	return len;
 }
 
-/*virtual*/bool MediaBuffer::attachData(BYTE* pData, size_t len, const MemoryAllocator& allocator/* = MemoryAllocator()*/)
+/*virtual*/bool MediaBuffer::attachData(uint8_t* pData, size_t len, const MemoryAllocator& allocator/* = MemoryAllocator()*/)
 {
     //attachdata just do attach, if there is already malloced or attachdata before, attach failed.
 	if(pData==NULL || len<=0)
 		return false;
-    if(m_data || m_bufLen>0)
+    if(m_data || m_bufLen>0 || m_type != MEDIA_BUFFER_TYPE_UNKNOW)
         return false;
 	m_data = pData;
 	m_bufLen = len;
     m_payloadOffset = 0;
-    m_payloadSize = 0;
+    m_payloadSize = len;
 	m_allocator = allocator;
+	m_type = MEDIA_BUFFER_TYPE_MEMORY;
 	return true;
 }
-

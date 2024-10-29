@@ -1,7 +1,7 @@
 #ifndef _MEDIA_FILTER_VIDEO_DATA_H_
 #define _MEDIA_FILTER_VIDEO_DATA_H_
 
-#include "PictureInfo.h"
+#include "RawPicture.h"
 #include "CodecMediaData.h"
 #include "mediadata_tpl.h"
 

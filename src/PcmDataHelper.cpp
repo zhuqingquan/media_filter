@@ -1,6 +1,16 @@
 #include "PcmDataHelper.h"
+#include <cstring>
+#include <vector>
+#include <math.h>
+
+#ifndef DWORD
+typedef uint32_t DWORD;
+#endif
+
+#define AudioSample float 
 
 using namespace zMedia;
+using namespace std;
 
 	inline bool MachineIsBigEndian()
 	{
@@ -114,15 +124,40 @@ using namespace zMedia;
 		}
 	};
 
+    void zMedia::scaleVolume(float* data, int sampleCount, double volFactor)
+    {
+        if (data == nullptr)
+            return;
+        for (int i=0; i<sampleCount; i++)
+        {
+            data[i] = data[i] * volFactor;
+        }
+    }
+
+    void zMedia::scaleVolume(short* data, int sampleCount, double volFactor)
+    {
+        if (data == nullptr)
+            return;
+        for (int i = 0; i < sampleCount; i++)
+        {
+            int64_t m = (int64_t)(data[i] * volFactor);
+            m = m > 32767 ? 32767 : ((m < -32767) ? -32767 : m);
+            data[i] = (short)m;
+        }
+    }
 
 
 	int zMedia::short2float( const short* shortData, int shortCount, float* floatBuffer, int floatCount )
 	{
+		if (shortData == nullptr || floatBuffer == nullptr || shortCount <= 0 || floatCount <= 0)
+			return 0;
 		int nBits = 16;
 		bool bSigned = nBits > 8;
 		bool bNeedSwap = false;
 
-		assert(floatCount >= shortCount);
+		//assert(floatCount >= shortCount);
+		if (floatCount < shortCount)
+			return 0;
 
 		sucks<short, false>::DoFixedpointConvert(bNeedSwap,
 			bSigned, shortData, nBits, shortCount, floatBuffer);
@@ -175,12 +210,13 @@ using namespace zMedia;
 		if(srcData->sampleSize()==AudioSampleSize_SHORT && dstSampleTypeSize==AudioSampleSize_FLOAT
 			&& dstChannels==srcData->channels() && dstSampleRate==srcData->sampleRate())
 		{
-			PcmData::SPtr  dst(new PcmData(dstChannels, dstSampleRate, dstSampleTypeSize, srcData->getTimeCount()));
+			PcmData::SPtr  dst(new PcmData(dstChannels, dstSampleRate, dstSampleTypeSize));
 			assert(dst);
+			dst->malloc_timecount(srcData->getTimeCount());
 			
 			UINT dstCapacitySampleCoutn = dst->capacity() / dstSampleTypeSize;
 			zMedia::short2float((short*)srcData->data(), srcData->sampleCount(), (float*)dst->data(), dstCapacitySampleCoutn);
-			dst->setWritePos(dst->capacity());
+			// dst->setWritePos(dst->capacity());
 			return dst;
 		}
 		//其他情况暂时返回失败
@@ -189,17 +225,42 @@ using namespace zMedia;
 
 	PcmData::SPtr zMedia::clonePcmData( const PcmData::SPtr& srcData )
 	{
-		PcmData::SPtr clonedPcmData(new PcmData);
-		clonedPcmData->allocBuffer(srcData->capacity(), srcData->memAllocator());
-		clonedPcmData->setChannels(srcData->channels());
-		clonedPcmData->setSampleRate(srcData->sampleRate());
-		clonedPcmData->setSampleSize(srcData->sampleSize());
-		clonedPcmData->setVolume(srcData->volume());
-		clonedPcmData->setIsMuted(srcData->isMuted());
+		if(srcData==nullptr)
+			return PcmData::SPtr();
+		PcmData::SPtr clonedPcmData(new PcmData(srcData->channels(), srcData->sampleRate(), srcData->sampleSize()));
+		clonedPcmData->malloc_samplecount(srcData->sampleCount(), srcData->memAllocator());
+		memcpy(clonedPcmData->data(), srcData->data(), srcData->size());
+		// clonedPcmData->allocBuffer(srcData->capacity(), srcData->memAllocator());
+		// clonedPcmData->setChannels(srcData->channels());
+		// clonedPcmData->setSampleRate(srcData->sampleRate());
+		// clonedPcmData->setSampleSize(srcData->sampleSize());
+		// clonedPcmData->setVolume(srcData->volume());
+		// clonedPcmData->setIsMuted(srcData->isMuted());
 		clonedPcmData->setTimeStamp(srcData->getTimeStamp());
-		clonedPcmData->setData(srcData->data(), srcData->size());//copy the pcm data
+		// clonedPcmData->setData(srcData->data(), srcData->size());//copy the pcm data
 		return clonedPcmData;
 	}
+
+	//bool zMedia::CopyPcmData(PcmData::SPtr dstData, const PcmData::SPtr& srcData, PcmData::SPtr& noCopy)
+	//{
+	//	if (dstData == nullptr || dstData->freeSize() <= 0 || srcData == nullptr || srcData->size() <= 0)
+	//		return false;
+	//	size_t freesize = dstData->freeSize();
+	//	size_t payloadsize = srcData->size();
+	//	int copyed = freesize <= payloadsize ? freesize : payloadsize;
+	//	size_t writed = dstData->appendData(srcData->payload(), srcData->size());
+	//	if (writed == srcData->size())
+	//	{
+	//		noCopy
+	//		return true;
+	//	}
+	//	/*PcmData::SPtr */noCopy = std::make_shared<PcmData>(srcData->channels(), srcData->sampleRate(), srcData->sampleSize());
+	//	size_t writedSample = writed / (srcData->sampleSizeAllChannels());
+	//	noCopy->malloc_samplecount(srcData->sampleCountPerChannel()-writedSample);
+	//	noCopy->appendData(srcData->payload() + writed, noCopy->freeSize());
+	//	return noCopy;
+	//}
+
 
 	PcmDataConvert::PcmDataConvert()
 	//:m_buffer(NULL)
@@ -269,3 +330,196 @@ using namespace zMedia;
 // 			m_bufferSize = size;
 // 		}
 	}
+
+	static const double DLT_MIN = -10 / 32767.0f;
+	static const double DLT_MAX = 10 / 32767.0f;
+
+	void zMedia::mixPcms(const std::vector<short*>& pcms, int samples, const std::vector<double>& volumeFactors, short* output, double masterVolumeFactor)
+	{
+#if 0
+		// By pass, just use the first one
+		memcpy(output, pcms.front(), samples * 2);
+#else
+		for (int i = 0; i < samples; i++)
+		{
+			double mixTotal = 0;
+			for (size_t j = 0; j < pcms.size(); j++)
+			{
+				// Simple mix it with volume adjust
+				double d = pcms[j][i] / 32767.0f;
+				d = d * volumeFactors[j];
+				mixTotal += d;
+
+				// Relationship between t(treshold) and a(alpha) are pre-calculated as a mapping table, here we take t=0.6
+				// treshold: 0     0.1   0.2   0.3   0.4   0.5   0.6   0.7    0.8    0.9
+				// alpha:    2.51  2.84  3.26  3.82  4.59  5.71  7.48  10.63  17.51  41.15
+				double out = 0;
+				double t = 0.6;
+				double a = 7.48;
+				double x = mixTotal;
+				int n = pcms.size();
+
+				if (pcms.size() == 1 || (x >= -t && x <= t))
+				{
+					out = x;
+				}
+				else if (d == mixTotal || (d >= DLT_MIN && d <= DLT_MAX))
+				{
+					out = x;
+				}
+				else
+				{
+					out = (x / fabs(x)) * (t + (1 - t) * log(1 + a * ((fabs(x) - t) / (n - t))) / log(1 + a));
+				}
+
+				// Use adjusted value instead, avoid the overfolow
+				mixTotal = (double)out;
+
+				// Adjust master volume
+				mixTotal = mixTotal * masterVolumeFactor;
+			}
+
+			// Convert to short
+			int m = (short)(mixTotal * 32767);
+			if (m > 32767)
+			{
+				m = 32767;
+			}
+			else if (m < -32767)
+			{
+				m = -32767;
+			}
+
+			// Assign to output
+			output[i] = m;
+		}
+#endif
+	}
+
+	void zMedia::mixPcms(const vector<float*>& pcms, int samples, const vector<double>& volumeFactors, float* output, double masterVolumeFactor)
+	{
+#if 0
+		// By pass, just use the first one
+		memcpy(output, pcms.front(), samples * 2);
+#else
+		for (int i = 0; i < samples; i++)
+		{
+			double mixTotal = 0;
+			for (size_t j = 0; j < pcms.size(); j++)
+			{
+				// Simple mix it with volume adjust
+				//double d = pcms[j][i] / 32767.0f;
+				double d = pcms[j][i];
+				d = d * volumeFactors[j];
+				mixTotal += d;
+
+				// Relationship between t(treshold) and a(alpha) are pre-calculated as a mapping table, here we take t=0.6
+				// treshold: 0     0.1   0.2   0.3   0.4   0.5   0.6   0.7    0.8    0.9
+				// alpha:    2.51  2.84  3.26  3.82  4.59  5.71  7.48  10.63  17.51  41.15
+				double out = 0;
+				double t = 0.6;
+				double a = 7.48;
+				double x = mixTotal;
+				int n = pcms.size();
+
+				if (pcms.size() == 1 || (x >= -t && x <= t))
+				{
+					out = x;
+				}
+				else if (d == mixTotal || (d >= DLT_MIN && d <= DLT_MAX))
+				{
+					out = x;
+				}
+				else
+				{
+					out = (x / fabs(x)) * (t + (1 - t) * log(1 + a * ((fabs(x) - t) / (n - t))) / log(1 + a));
+				}
+
+				// Use adjusted value instead, avoid the overfolow
+				mixTotal = (double)out;
+
+				// Adjust master volume
+				//mixTotal = mixTotal * masterVolumeFactor;
+			}
+
+			//if (mixTotal > 1.0)
+			//	mixTotal = 1.0;
+			//if (mixTotal < -1.0)
+			//	mixTotal = -1.0;
+
+			// Convert to short
+			//int m = (short)(mixTotal * 32767);
+			//if (m > 32767)
+			//{
+			//	m = 32767;
+			//}
+			//else if (m < -32767)
+			//{
+			//	m = -32767;
+			//}
+
+			// Assign to output
+			output[i] = mixTotal;
+		}
+#endif
+	}
+
+    template<typename T>
+    int calculatePcmLevelTmp(const T* pdata, int channel, int sampleCountPerChannel)
+    {
+        int level = 0;
+        float sum = 0.0f;
+        for(int i=0; i<sampleCountPerChannel; i++)
+        {
+            for(int ch=0; ch<channel; ch++)
+            {
+                sum += pdata[i*channel + ch];
+            }
+        }
+        level = sum / sampleCountPerChannel;
+        return level;
+    }
+
+	int zMedia::calculatePcmLevel(const PcmData::SPtr& srcData)
+    {
+        if(srcData==nullptr) return 0;
+        int level = 0;
+        switch(srcData->sampleSize())
+        {
+        case AudioSampleSize_BYTE:
+            {
+                return calculatePcmLevelTmp<uint8_t>((uint8_t*)srcData->data(), srcData->channels(), srcData->sampleCountPerChannel());
+            }
+            break;
+        case AudioSampleSize_SHORT:
+            {
+                return calculatePcmLevelTmp<short>((short*)srcData->data(), srcData->channels(), srcData->sampleCountPerChannel());
+            }
+            break;
+        case AudioSampleSize_FLOAT:
+            {
+                return calculatePcmLevelTmp<float>((float*)srcData->data(), srcData->channels(), srcData->sampleCountPerChannel());
+            }
+            break;
+        }
+        return level;
+    }
+
+    int zMedia::PCMPackedDataToPlanar(const float* packedData, int samplecount, int channel, float* planarData[])
+    {
+        if (packedData == nullptr || samplecount == 0 || channel == 0 || planarData == nullptr)
+            return 0; 
+        int copyedSampleCount = 0;
+        float* src = (float*)packedData;
+        for (int i = 0; i < samplecount; i++)
+        {
+            for (int j = 0; j < channel; j++)
+            {
+                planarData[j][i] = src[j];
+            }
+            src += channel;
+            ++copyedSampleCount;
+        }
+        return copyedSampleCount;
+    }
+

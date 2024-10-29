@@ -1,27 +1,34 @@
 #ifndef _MEDIA_FILTER_CODEC_MEDIA_DATA_H_
 #define _MEDIA_FILTER_CODEC_MEDIA_DATA_H_
 
-#include "MediaData.h"
+#include "PictureInfo.h"
+#include "MediaBuffer.h"
+#include <memory.h>
 
 namespace zMedia
 {
+    /**
+     * @brief 编码后的视频数据帧
+     */
     class PictureCodec
     {
     public:
         typedef PictureCodec SelfType;
-        typedef boost::shared_ptr<PictureCodec> SPtr;
+        typedef std::shared_ptr<PictureCodec> SPtr;
 
-		PictureCodec() : m_forcc(0), m_subtype(0), m_nPts(0), m_nDts(0) {}
+		PictureCodec() : m_subtype(0), m_nPts(0), m_nDts(0) {}
 
-        PictureCodec(uint32_t forcc, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
-			: m_forcc(forcc), m_subtype(0) 
+        PictureCodec(uint32_t fourcc, uint32_t subtype) : m_frameType(fourcc), m_subtype(subtype), m_nPts(0), m_nDts(0) {}
+
+        PictureCodec(uint32_t fourcc, uint32_t subtype, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
+			: m_frameType(fourcc), m_subtype(subtype) 
 			, m_nPts(0), m_nDts(0)
         {
             allocData(length, allocator);
         }
         
-        PictureCodec(uint32_t forcc, BYTE* data, size_t length)
-			: m_forcc(forcc), m_subtype(0)
+        PictureCodec(uint32_t fourcc, uint32_t subtype, BYTE* data, size_t length)
+			: m_frameType(fourcc), m_subtype(subtype)
 			, m_nPts(0), m_nDts(0)
         {
             attachData(data, length);
@@ -31,8 +38,8 @@ namespace zMedia
             free();
         }
 
-        void setFORCC(uint32_t forcc) { m_forcc = forcc; }
-        uint32_t getFORCC() const { return m_forcc; }
+        void setFrameType(uint32_t fourcc) { m_frameType = fourcc; }
+        uint32_t getFrameType() const { return m_frameType; }
 
         void setSubtype(uint32_t subtype) { m_subtype = subtype; }
         uint32_t getSubtype() const { return m_subtype; }
@@ -46,6 +53,19 @@ namespace zMedia
         size_t allocData(size_t length, const MemoryAllocator& allocator = MemoryAllocator())
         {
             return m_buf.malloc(length, allocator);
+        }
+
+        /**
+         * @brief   malloc内存空间，并将srcBuf中的数据的length字节拷贝到内存空间中
+         */
+        size_t allocData(uint8_t* srcBuf, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
+        {
+            size_t ret = m_buf.malloc(length, allocator);
+            if (ret < length)
+                return ret;
+            memcpy(m_buf.data(), srcBuf, length);
+            m_buf.setPayloadSize(length);
+            return ret;
         }
 
         bool attachData(BYTE* data, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
@@ -66,30 +86,34 @@ namespace zMedia
         PictureCodec(const PictureCodec& robj);
         PictureCodec& operator=(const PictureCodec& robj);
     private:
-        uint32_t m_forcc;
-        uint32_t m_subtype;
+        uint32_t m_frameType = FOURCC_Unknown;    // 编码后的视频帧类型，比如H264，H265, AV1等
+        uint32_t m_subtype = 0;                   // 子类型，比如I帧、P帧。如果是H264则可以对应EncVideoFrameType
         MediaBuffer m_buf;
-		int64_t m_nPts;
-		int64_t m_nDts;
-
+		int64_t m_nPts = 0;
+		int64_t m_nDts = 0;
     };//class PictureCodec
 
+    /**
+     * @brief 编码后的音频数据
+     */
     class AudioCodec
     {
     public:
         typedef AudioCodec SelfType;
-        typedef boost::shared_ptr<AudioCodec> SPtr;
+        typedef std::shared_ptr<AudioCodec> SPtr;
 
         AudioCodec() : m_forcc(0), m_subtype(0), m_timestamp(0) {}
+        
+        AudioCodec(uint32_t fourcc) : m_forcc(fourcc), m_subtype(0), m_timestamp(0) {}
 
-        AudioCodec(uint32_t forcc, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
-            : m_forcc(forcc), m_subtype(0), m_timestamp(0)
+        AudioCodec(uint32_t fourcc, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
+            : m_forcc(fourcc), m_subtype(0), m_timestamp(0)
         {
             allocData(length, allocator);
         }
         
-        AudioCodec(uint32_t forcc, BYTE* data, size_t length)
-            : m_forcc(forcc), m_subtype(0), m_timestamp(0)
+        AudioCodec(uint32_t fourcc, BYTE* data, size_t length)
+            : m_forcc(fourcc), m_subtype(0), m_timestamp(0)
         {
             attachData(data, length);
         }
@@ -98,8 +122,8 @@ namespace zMedia
             free();
         }
 
-        void setTimestamp(uint32_t ts) { m_timestamp = ts; }
-        uint32_t getTimestamp() const { return m_timestamp; }
+        void setTimestamp(uint64_t ts) { m_timestamp = ts; }
+        uint64_t getTimestamp() const { return m_timestamp; }
         
         void setFORCC(uint32_t forcc) { m_forcc = forcc; }
         uint32_t getFORCC() const { return m_forcc; }
@@ -110,6 +134,19 @@ namespace zMedia
         size_t allocData(size_t length, const MemoryAllocator& allocator = MemoryAllocator())
         {
             return m_buf.malloc(length, allocator);
+        }
+
+        /**
+         * @brief   malloc内存空间，并将srcBuf中的数据的length字节拷贝到内存空间中
+         */
+        size_t allocData(uint8_t* srcBuf, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
+        {
+            size_t ret = m_buf.malloc(length, allocator);
+            if (ret < length)
+                return ret;
+            memcpy(m_buf.data(), srcBuf, length);
+            m_buf.setPayloadSize(length);
+            return ret;
         }
 
         bool attachData(BYTE* data, size_t length, const MemoryAllocator& allocator = MemoryAllocator())
@@ -130,9 +167,9 @@ namespace zMedia
         AudioCodec(const AudioCodec& robj);
         AudioCodec& operator=(const AudioCodec& robj);
     private:
-        uint32_t m_forcc;
-        uint32_t m_subtype;
-        uint32_t m_timestamp;
+        uint32_t m_forcc = FOURCC_Unknown;
+        uint32_t m_subtype = 0;
+        uint64_t m_timestamp = 0;
         MediaBuffer m_buf;
     };//class AudioCodec
 }//namespace zMedia
