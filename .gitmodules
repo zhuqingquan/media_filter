@@ -1,0 +1,3 @@
+[submodule "zMemoryPool"]
+	path = zMemoryPool
+	url = https://github.com/zhuqingquan/zMemoryPool.git

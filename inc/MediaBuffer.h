@@ -25,7 +25,7 @@ typedef enum _MediaBufferType
 	MEDIA_BUFFER_TYPE_D3D11_TEX,	// The buffer is allocated in video card by D3D11 driver
 }MediaBufferType;
 
-extern zMedia::MemoryAllocator gMemAllocatorMempool;
+//extern zMedia::MemoryAllocator gMemAllocatorMempool;
 
 namespace zMedia {
 

@@ -60,10 +60,10 @@ namespace zMedia
 		PcmDataConvert();
 		~PcmDataConvert();
 
-		bool float2short(const BYTE* floatData, int bytesCount );
-		bool short2float(const BYTE* shortData, int bytesCount );
+		bool float2short(const uint8_t* floatData, int bytesCount );
+		bool short2float(const uint8_t* shortData, int bytesCount );
 
-		const BYTE* data() const { return m_buf.data(); }
+		const uint8_t* data() const { return m_buf.data(); }
 		size_t size() const { return m_dataSize; }
 		void clear() { m_dataSize = 0; }
 

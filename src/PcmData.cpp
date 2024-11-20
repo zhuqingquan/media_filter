@@ -61,7 +61,7 @@ size_t PcmData::free( )
     return ret;
 }
 
-size_t PcmData::appendData( const BYTE* data, size_t bytesCount )
+size_t PcmData::appendData( const uint8_t* data, size_t bytesCount )
 {
     assert(bytesCount % m_PerSampleByteCount == 0);
     if(m_nTimeCount==0 || m_capacity==0)
@@ -74,7 +74,7 @@ size_t PcmData::appendData( const BYTE* data, size_t bytesCount )
 
     if (writeSize > 0)
     {
-        BYTE* dst = m_buf.data() + m_buf.getPayloadOffset() + m_buf.getPayloadSize();
+        uint8_t* dst = m_buf.data() + m_buf.getPayloadOffset() + m_buf.getPayloadSize();
         memcpy( dst, data, writeSize);
         m_buf.setPayloadSize(m_buf.getPayloadSize()+writeSize);
     }

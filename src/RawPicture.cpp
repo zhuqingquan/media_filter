@@ -1,6 +1,3 @@
-#include "libyuv.h"
-#include "libyuv/scale_rgb.h"
-#include "libyuv/scale_argb.h"
 #include "RawPicture.h"
 #include <algorithm>
 #include <string.h>
@@ -112,6 +109,12 @@ void PictureRaw::freeData()
     m_format = zMedia::PICTURE_FORMAT();
 }
 
+#ifdef USE_LIBYUV
+#include "libyuv.h"
+#include "libyuv/scale_rgb.h"
+#include "libyuv/scale_argb.h"
+#endif
+
 bool PictureRaw::copyData(uint8_t** src, int* src_stride, int x, int y, int w, int h)
 {
     if(data()==nullptr) return false;
@@ -131,35 +134,44 @@ bool PictureRaw::copyData(uint8_t** src, int* src_stride, int x, int y, int w, i
         // copy Y
         psrc = src[0] + (y * src_stride[0] + x);
         pdst = (uint8_t*)this->y();
+#ifdef USE_LIBYUV
         libyuv::CopyPlane(psrc, src_stride[0], pdst, m_format.y_stride, real_w, real_h);
-        //for(int i=0; i<real_h; i++)
-        //{
-        //    memcpy(pdst, psrc, real_w);
-        //    psrc += src_stride[0];
-        //    pdst += this->m_format.y_stride;
-        //}
+#else
+        for(int i=0; i<real_h; i++)
+        {
+            memcpy(pdst, psrc, real_w);
+            psrc += src_stride[0];
+            pdst += this->m_format.y_stride;
+        }
+#endif
         // copy U
         psrc = src[1] + ((y >> 1) * src_stride[1] + (x >> 1));
         pdst = (uint8_t*)this->u();
         int h_half = real_h / 2;
         int w_half = real_w / 2;
+#ifdef USE_LIBYUV
         libyuv::CopyPlane(psrc, src_stride[1], pdst, m_format.u_stride, w_half, h_half);
-        //for(int i=0; i<h_half; i++)
-        //{
-        //    memcpy(pdst, psrc, w_half);
-        //    psrc += src_stride[1];
-        //    pdst += this->m_format.u_stride;
-        //}
+#else
+        for(int i=0; i<h_half; i++)
+        {
+            memcpy(pdst, psrc, w_half);
+            psrc += src_stride[1];
+            pdst += this->m_format.u_stride;
+        }
+#endif
         // copy V
         psrc = src[2] + ((y >> 1) * src_stride[2] + (x >> 1));
         pdst = (uint8_t*)this->v();
+#ifdef USE_LIBYUV
         libyuv::CopyPlane(psrc, src_stride[2], pdst, m_format.v_stride, w_half, h_half);
-        //for(int i=0; i<h_half; i++)
-        //{
-        //    memcpy(pdst, psrc, w_half);
-        //    psrc += src_stride[2];
-        //    pdst += this->m_format.v_stride;
-        //}
+#else
+        for(int i=0; i<h_half; i++)
+        {
+            memcpy(pdst, psrc, w_half);
+            psrc += src_stride[2];
+            pdst += this->m_format.v_stride;
+        }
+#endif
         return true;
     }
     case PIXFMT_E_YV12:
@@ -237,6 +249,9 @@ bool PictureRaw::removeOverlay(const PictureRaw::Overlay& overlay)
 
 PictureRaw::SPtr zMedia::copySubImage(const PictureRaw::SPtr& src, int x, int y, int w, int h)
 {
+#ifdef USE_LIBYUV
+    if(src==nullptr || !src->format().isValid() || src->data()==nullptr)
+        return nullptr;
     if(src==nullptr || !src->format().isValid() || src->data()==nullptr)
         return nullptr;
     if(x<0 || y<0 || x >= src->format().w || y >= src->format().h)
@@ -274,10 +289,14 @@ PictureRaw::SPtr zMedia::copySubImage(const PictureRaw::SPtr& src, int x, int y,
         return nullptr;
     }
     return result;
+#else
+    return nullptr;
+#endif
 }
 
 PictureRaw::SPtr zMedia::scaleImage(const PictureRaw::SPtr& src, int w, int h)
 {
+#ifdef USE_LIBYUV
     if(src==nullptr || !src->format().isValid() || src->data()==nullptr)
         return nullptr;
     if(w <=0 || h <= 0)
@@ -309,10 +328,14 @@ PictureRaw::SPtr zMedia::scaleImage(const PictureRaw::SPtr& src, int w, int h)
         return nullptr;
     }
     return result;
+#else
+    return nullptr;
+#endif
 }
 
 PictureRaw::SPtr convertToRGB24(const PictureRaw::SPtr& src, bool needPadding = true)
 {
+#ifdef USE_LIBYUV
     if(src==nullptr || src->data()==nullptr || !src->format().isValid())
         return nullptr;
     zMedia::PictureRaw::SPtr result = std::make_shared<zMedia::PictureRaw>();
@@ -333,10 +356,14 @@ PictureRaw::SPtr convertToRGB24(const PictureRaw::SPtr& src, bool needPadding = 
         return nullptr;
     }
     return result;
+#else
+    return nullptr;
+#endif
 }
 
 PictureRaw::SPtr convertToI420P(const PictureRaw::SPtr& src, bool needPadding = true)
 {
+#ifdef USE_LIBYUV
     if(src==nullptr || src->data()==nullptr || !src->format().isValid())
         return nullptr;
     zMedia::PictureRaw::SPtr result = std::make_shared<zMedia::PictureRaw>();
@@ -354,6 +381,9 @@ PictureRaw::SPtr convertToI420P(const PictureRaw::SPtr& src, bool needPadding = 
         return nullptr;
     }
     return result;
+#else
+    return nullptr;
+#endif
 }
 
 PictureRaw::SPtr zMedia::convertImage(const PictureRaw::SPtr& src, zMedia::E_PIXFMT pixfmt, bool needPadding /*= true*/)

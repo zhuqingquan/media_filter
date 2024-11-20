@@ -24,8 +24,8 @@ using namespace std;
 
 	inline void SwapOrder(void* p, unsigned nBytes)
 	{
-		BYTE* ptr = (BYTE*)p;
-		BYTE t;
+		uint8_t* ptr = (uint8_t*)p;
+		uint8_t t;
 		unsigned n;
 		for(n = 0; n < nBytes>>1; n++)
 		{
@@ -172,11 +172,11 @@ using namespace std;
 
 		const float* pSrc = floatData;
 		short* pDst = dstShortBuffer;
-		UINT processCount = floatCount;
+		uint32_t processCount = floatCount;
 
 		union {float f; DWORD i;} u;
 
-		for (UINT i = 0; i < processCount; i++)
+		for (uint32_t i = 0; i < processCount; i++)
 		{
 			u.f = float(*pSrc + 384.0);
 			if (u.i > 0x43c07fff) 
@@ -198,7 +198,7 @@ using namespace std;
 		return floatCount;
 	}
 
-	PcmData::SPtr zMedia::convertPcmData( const PcmData::SPtr& srcData, UINT dstChannels, UINT dstSampleRate, AudioSampelTypeSize dstSampleTypeSize )
+	PcmData::SPtr zMedia::convertPcmData( const PcmData::SPtr& srcData, uint32_t dstChannels, uint32_t dstSampleRate, AudioSampelTypeSize dstSampleTypeSize )
 	{
 		if(srcData->empty())
 			return PcmData::SPtr();
@@ -214,7 +214,7 @@ using namespace std;
 			assert(dst);
 			dst->malloc_timecount(srcData->getTimeCount());
 			
-			UINT dstCapacitySampleCoutn = dst->capacity() / dstSampleTypeSize;
+			uint32_t dstCapacitySampleCoutn = dst->capacity() / dstSampleTypeSize;
 			zMedia::short2float((short*)srcData->data(), srcData->sampleCount(), (float*)dst->data(), dstCapacitySampleCoutn);
 			// dst->setWritePos(dst->capacity());
 			return dst;
@@ -282,7 +282,7 @@ using namespace std;
 // 		}
 	}
 
-	bool PcmDataConvert::float2short( const BYTE* floatData, int bytesCount )
+	bool PcmDataConvert::float2short( const uint8_t* floatData, int bytesCount )
 	{
 		alloc(bytesCount/2);
 
@@ -295,7 +295,7 @@ using namespace std;
 		return samples == shortSampleCount;
 	}
 
-	bool PcmDataConvert::short2float( const BYTE* shortData, int bytesCount )
+	bool PcmDataConvert::short2float( const uint8_t* shortData, int bytesCount )
 	{
 		clear();
 

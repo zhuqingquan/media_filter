@@ -2,6 +2,8 @@
 
 cmake_minimum_required(VERSION 2.6)
 project(media_filter)
+
+add_subdirectory(zMemoryPool memorypool)
 #The version number
 set(media_filter_VERSION_MAJOR 1)
 set(media_filter_VERSION_MINOR 0)
@@ -26,7 +28,6 @@ set(SRC_LIST
     ${SRC_DIR}/MediaBuffer.cpp 
     ${SRC_DIR}/MemoryAllocator.cpp
     ${SRC_DIR}/RawPicture.cpp
-    ${SRC_DIR}/PictureInfo.cpp
     ${SRC_DIR}/PcmData.cpp
     ${SRC_DIR}/PcmDataHelper.cpp
 )

@@ -1,10 +1,11 @@
 #include "MediaBuffer.h"
 #include "mediafilter.h"
 #include <assert.h>
-#include "MediaMemPool.h"
 
 using namespace zMedia;
 
+/*
+#include "MediaMemPool.h"
 void* malloc_from_memory_pool(size_t size)
 {
     return MediaMempool_malloc(size);
@@ -14,8 +15,8 @@ void free_memory_pool(void* mem)
 {
     MediaMempool_free(mem);
 }
-
-/*extern*/ MemoryAllocator gMemAllocatorMempool( malloc_from_memory_pool, free_memory_pool );
+*/
+///*extern*/ MemoryAllocator gMemAllocatorMempool( malloc_from_memory_pool, free_memory_pool );
 
 MediaBuffer::MediaBuffer()
     : m_data(NULL), m_bufLen(0)

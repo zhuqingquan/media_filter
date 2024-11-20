@@ -35,6 +35,9 @@ namespace zMedia
 		return tResult;
 	}
 
+	//对齐4字节，保证SSE指令正常
+	inline int Align4Bytes(int value) { return (value <= INT_MAX-4) ? ((value + 3) & ~3) : value; }
+	inline uint32_t Align4Bytes(uint32_t value) { return (value < UINT_MAX-4) ? ((value + 3) & ~3) : value; }
 	//对齐16字节，保证SSE指令正常
 	inline int Align16Bytes(int value) { return (value <= INT_MAX-16) ? ((value + 15) & ~15) : value; }
 	inline uint32_t Align16Bytes(uint32_t value) { return (value < UINT_MAX-16) ? ((value + 15) & ~15) : value; }
