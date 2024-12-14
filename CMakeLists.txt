@@ -4,6 +4,8 @@ cmake_minimum_required(VERSION 2.6)
 project(media_filter)
 
 add_subdirectory(zMemoryPool memorypool)
+add_subdirectory(test media_filter_unittest)
+
 #The version number
 set(media_filter_VERSION_MAJOR 1)
 set(media_filter_VERSION_MINOR 0)
